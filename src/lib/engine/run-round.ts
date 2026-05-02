@@ -46,6 +46,7 @@ export function getDemoRoundState(): RoundState {
       finalBalance: 11.8,
       pnlUsd: 1.8,
       status: "pending",
+      winningSide: null,
     },
   };
 

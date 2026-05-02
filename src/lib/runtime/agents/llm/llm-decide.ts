@@ -64,6 +64,21 @@ function clampSize(sizeUsd: number, bankrollUsd: number) {
   return Math.min(Math.max(sizeUsd, 0), bankrollUsd);
 }
 
+function buildFallbackDecision(input: RunLlmAgentInput) {
+  const followsCrowd = input.context.currentPrice >= 0.5;
+  const isContrarian = input.persona.name.toLowerCase().includes("contrarian");
+  const side = isContrarian
+    ? followsCrowd
+      ? "no"
+      : "yes"
+    : followsCrowd
+      ? "yes"
+      : "no";
+  const sizeUsd = clampSize(isContrarian ? 3 : 4, input.context.bankrollUsd);
+
+  return { side, sizeUsd } as const;
+}
+
 export async function runLlmAgent(
   input: RunLlmAgentInput,
 ): Promise<AgentDecision> {
@@ -122,15 +137,17 @@ export async function runLlmAgent(
       error,
     );
 
+    const fallback = buildFallbackDecision(input);
+
     return {
       execution: {
         model: adapter.model,
         provider: adapter.provider,
         status: "failed-fallback",
       },
-      reason: `Defaulted to YES due to upstream LLM failure on ${adapter.model}.`,
-      side: "yes",
-      sizeUsd: clampSize(1, input.context.bankrollUsd),
+      reason: `LLM failed on ${adapter.model}; used ${input.persona.name} fallback policy and committed ${fallback.side.toUpperCase()}.`,
+      side: fallback.side,
+      sizeUsd: fallback.sizeUsd,
       trace: [
         {
           detail: `${input.context.question} at live price ${input.context.currentPrice}.`,
@@ -143,12 +160,12 @@ export async function runLlmAgent(
           title: "Brain Execution Failed",
         },
         {
-          detail: "Runtime used the conservative fallback path so the public battle could continue.",
+          detail: `${input.persona.name} fallback preserved its public strategy after the upstream LLM failed.`,
           phase: "fallback",
           title: "Fallback Policy Activated",
         },
         {
-          detail: `Committed YES with ${clampSize(1, input.context.bankrollUsd).toFixed(2)} USDC exposure.`,
+          detail: `Committed ${fallback.side.toUpperCase()} with ${fallback.sizeUsd.toFixed(2)} USDC exposure.`,
           phase: "decision",
           title: "Arena Action Submitted",
         },

@@ -193,6 +193,11 @@ async function mapSettlement(round: PersistedRoundRecord): Promise<RoundSettleme
     finalBalance: round.settlement?.finalBalance ?? fallbackBalance,
     pnlUsd: round.settlement?.pnlUsd ?? 0,
     status: round.settlement?.status === "settled" ? "settled" : "pending",
+    winningSide:
+      round.settlement?.winningSide === "yes" ||
+      round.settlement?.winningSide === "no"
+        ? round.settlement.winningSide
+        : null,
     winnerAgentId: round.settlement?.winnerAgentKey ?? winnerAgent?.agentKey ?? "",
     winnerName: round.settlement?.winnerName ?? winnerAgent?.name ?? "Pending settlement",
     winnerReputation:

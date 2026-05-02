@@ -530,12 +530,28 @@ export default function RoundPage() {
 
   const leftAgentData = findAgentRoundData(round, 0);
   const rightAgentData = findAgentRoundData(round, 1);
+  const winnerReputation = round.settlement.winnerReputation;
   const losingAgentName =
     round.status === "settled"
       ? [leftAgentData?.agent, rightAgentData?.agent]
           .find((agent) => agent?.id !== round.settlement.winnerAgentId)
           ?.name
       : null;
+  const winningSide = round.settlement.winningSide;
+  const winnerAction = round.actions.find(
+    (action) => action.agentId === round.settlement.winnerAgentId,
+  );
+  const loserAction = round.actions.find(
+    (action) => action.agentId !== round.settlement.winnerAgentId,
+  );
+  const leftAction = leftAgentData?.action;
+  const rightAction = rightAgentData?.action;
+  const leftIsWinner =
+    round.status === "settled" &&
+    leftAgentData?.agent.id === round.settlement.winnerAgentId;
+  const rightIsWinner =
+    round.status === "settled" &&
+    rightAgentData?.agent.id === round.settlement.winnerAgentId;
 
   return (
     <div
@@ -582,7 +598,9 @@ export default function RoundPage() {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="border-[3px] border-black bg-black px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.22em] text-[#fcee09]">
-                Settlement: {round.status === "settled" ? "Sealed" : "Pending"}
+                {round.status === "settled"
+                  ? "Settlement Sealed / Winner Declared / Proof Ready"
+                  : "Settlement Pending"}
               </div>
               <button
                 className="industrial-clip-sm flex items-center gap-2 border-[3px] border-black bg-[#fcee09] px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-black disabled:cursor-not-allowed disabled:opacity-50"
@@ -616,27 +634,27 @@ export default function RoundPage() {
 
           {round.status === "settled" && (
             <div
-              className="mb-4 grid gap-4 border-[6px] border-black px-4 py-4 text-black md:grid-cols-[1fr_auto]"
+              className="mb-4 grid gap-4 border-[6px] border-black px-4 py-4 text-black lg:grid-cols-[1fr_auto]"
               style={{ backgroundColor: "#fcee09", color: "#050505" }}
             >
               <div className="text-left">
                 <div className="font-mono text-[9px] font-black uppercase tracking-[0.24em]">
-                  Winner Declared
+                  Duel Result Bar
                 </div>
                 <div
                   className="mt-1 font-black uppercase italic leading-none tracking-tight text-[clamp(36px,6vw,96px)]"
                   style={{ color: round.settlement.winnerAgentId.includes("momentum") ? "#ff1f2d" : "#39ff14" }}
                 >
-                  {round.settlement.winnerName} Wins
+                  {round.settlement.winnerName} Defeats {losingAgentName ?? "The Field"}
                 </div>
                 <div className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.2em]">
-                  {losingAgentName ? `Defeated ${losingAgentName}` : "Arena verdict sealed"}
+                  {(winningSide ?? "winning").toUpperCase()} position won / +{round.settlement.pnlUsd.toFixed(2)} USDC / Rank impact {formatRankDelta(winnerReputation?.rankDelta ?? 0)}
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center md:min-w-[420px]">
-                <VerdictStat label="Side" value={round.settlement.winningSide.toUpperCase()} />
+              <div className="grid grid-cols-3 gap-2 text-center lg:min-w-[420px]">
+                <VerdictStat label="Side" value={(winningSide ?? "sealed").toUpperCase()} />
                 <VerdictStat label="PnL" value={`+${round.settlement.pnlUsd.toFixed(2)}`} />
-                <VerdictStat label="Status" value="Rank Updated" />
+                <VerdictStat label="Rank Impact" value={formatRankDelta(winnerReputation?.rankDelta ?? 0)} />
               </div>
             </div>
           )}
@@ -644,7 +662,7 @@ export default function RoundPage() {
           <div
             className="grid flex-1 items-stretch gap-2 md:gap-5"
             style={{
-              gridTemplateColumns: "minmax(0, 1fr) clamp(96px, 12vw, 180px) minmax(0, 1fr)",
+              gridTemplateColumns: "minmax(0, 1fr) clamp(88px, 12vw, 180px) minmax(0, 1fr)",
             }}
           >
             {leftAgentData && (
@@ -652,17 +670,28 @@ export default function RoundPage() {
                 agent={leftAgentData.agent}
                 action={leftAgentData.action}
                 balance={leftAgentData.balance}
+                isDefeated={round.status === "settled" && !leftIsWinner}
+                isWinner={leftIsWinner}
                 side="left"
               />
             )}
 
-            <VersusColumn />
+            <VersusColumn
+              isSettled={round.status === "settled"}
+              leftAction={leftAction}
+              loserAction={loserAction}
+              rightAction={rightAction}
+              winnerAction={winnerAction}
+              winnerName={round.settlement.winnerName}
+            />
 
             {rightAgentData && (
               <AgentBattleCard
                 agent={rightAgentData.agent}
                 action={rightAgentData.action}
                 balance={rightAgentData.balance}
+                isDefeated={round.status === "settled" && !rightIsWinner}
+                isWinner={rightIsWinner}
                 side="right"
               />
             )}
@@ -714,17 +743,64 @@ export default function RoundPage() {
   );
 }
 
-function VersusColumn() {
+function VersusColumn({
+  isSettled,
+  leftAction,
+  loserAction,
+  rightAction,
+  winnerAction,
+  winnerName,
+}: {
+  isSettled: boolean;
+  leftAction?: RoundAction;
+  loserAction?: RoundAction;
+  rightAction?: RoundAction;
+  winnerAction?: RoundAction;
+  winnerName: string;
+}) {
+  const primaryAction = isSettled ? winnerAction : leftAction;
+  const rivalAction = isSettled ? loserAction : rightAction;
+  const primaryConviction = primaryAction ? Math.round(primaryAction.sizeUsd) : null;
+  const rivalConviction = rivalAction ? Math.round(rivalAction.sizeUsd) : null;
+
   return (
-    <div className="flex h-full min-w-0 items-center justify-center">
+    <div className="flex h-full min-w-0 flex-col items-center justify-center gap-3">
       <div
         className="font-black italic leading-none tracking-tighter text-black"
-        style={{ fontSize: "clamp(76px, 11vw, 170px)" }}
+        style={{ fontSize: "clamp(52px, 8vw, 150px)" }}
       >
         VS
       </div>
+      <div className="w-full border-[4px] border-black bg-black p-2 text-center text-[#fcee09] shadow-[6px_6px_0_#000] md:p-3">
+        <div className="font-mono text-[6px] font-black uppercase tracking-[0.12em] text-[#fcee09] md:text-[9px]">
+          Arena Referee
+        </div>
+        <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-1 font-black uppercase italic text-black">
+          <span className="border-[2px] border-black bg-[#39ff14] px-1 py-1 text-[12px] md:text-base">
+            {primaryAction?.side.toUpperCase() ?? "YES"}
+          </span>
+          <span className="font-mono text-[8px] text-[#fcee09] md:text-[10px]">VS</span>
+          <span className="border-[2px] border-black bg-[#ff1f2d] px-1 py-1 text-[12px] md:text-base">
+            {rivalAction?.side.toUpperCase() ?? "NO"}
+          </span>
+        </div>
+        <div className="mt-2 font-mono text-[6px] font-black uppercase tracking-[0.06em] text-[#00eaff] md:text-[9px]">
+          Conviction {primaryConviction ?? "--"} / {rivalConviction ?? "--"}
+        </div>
+        <div className="mt-2 break-words border-t-2 border-[#fcee09] pt-2 font-mono text-[6px] font-black uppercase tracking-[0.06em] text-[#fcee09] md:text-[9px]">
+          {isSettled ? `Winner: ${winnerName}` : "Decision lock pending"}
+        </div>
+      </div>
     </div>
   );
+}
+
+function formatRankDelta(delta: number) {
+  if (delta > 0) {
+    return `+${delta}`;
+  }
+
+  return delta.toString();
 }
 
 function VerdictStat({ label, value }: { label: string; value: string }) {

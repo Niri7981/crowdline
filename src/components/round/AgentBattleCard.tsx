@@ -10,6 +10,8 @@ interface AgentBattleCardProps {
   agent: AgentSummary;
   action?: RoundAction;
   balance?: BankrollBalance;
+  isDefeated?: boolean;
+  isWinner?: boolean;
   side: "left" | "right";
 }
 
@@ -45,7 +47,14 @@ function formatRuntimeLabel(action: RoundAction | undefined, brain: AgentSummary
   return formatBrainLabel(brain);
 }
 
-export function AgentBattleCard({ agent, action, balance, side }: AgentBattleCardProps) {
+export function AgentBattleCard({
+  agent,
+  action,
+  balance,
+  isDefeated = false,
+  isWinner = false,
+  side,
+}: AgentBattleCardProps) {
   const isMomentum = agent.id === "momentum" || agent.id === "agent-momentum";
   const isContrarian = agent.id === "contrarian" || agent.id === "agent-contrarian";
   const themeColor = isMomentum ? "#ff1f2d" : "#39ff14";
@@ -57,8 +66,10 @@ export function AgentBattleCard({ agent, action, balance, side }: AgentBattleCar
 
   return (
     <article
-      className="industrial-clip relative mx-auto h-full w-full min-w-0 max-w-[380px] overflow-hidden border-[3px] bg-[#050505] text-white md:border-[5px]"
-      style={{ borderColor: themeColor }}
+      className="industrial-clip relative mx-auto h-full w-full min-w-0 max-w-[380px] overflow-hidden border-[3px] bg-[#050505] text-white transition duration-300 md:border-[5px]"
+      style={{
+        borderColor: themeColor,
+      }}
     >
       <div className="absolute inset-x-0 top-0 h-3" style={{ backgroundColor: themeColor }} />
 
@@ -146,7 +157,7 @@ export function AgentBattleCard({ agent, action, balance, side }: AgentBattleCar
         <div className="mt-auto flex items-center justify-between gap-1 border-t-[3px] border-black bg-[#111111] px-1.5 py-2 md:gap-2 md:border-t-[4px] md:px-5 md:py-4">
           <div className="flex items-center gap-1 font-mono text-[7px] font-black uppercase tracking-[0.14em] md:gap-2 md:text-[9px] md:tracking-[0.2em]" style={{ color: themeColor }}>
             <Swords className="h-3 w-3 md:h-4 md:w-4" />
-            <span className="hidden sm:inline">Identity</span> Ready
+            {isWinner ? "Identity Earned" : isDefeated ? "Defeated" : <><span className="hidden sm:inline">Identity</span> Ready</>}
           </div>
           <div className="text-[9px] font-black italic uppercase text-white md:text-base">
             {action ? `${action.sizeUsd.toFixed(2)} USDC` : "Pending"}

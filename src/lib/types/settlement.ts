@@ -17,5 +17,6 @@ export type RoundSettlement = {
   finalBalance: number;
   pnlUsd: number;
   status: "pending" | "settled";
+  winningSide: "yes" | "no" | null;
   winnerReputation?: SettledAgentReputation | null;
 };
