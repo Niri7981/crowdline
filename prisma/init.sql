@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS AgentProfile (
   brainProvider TEXT,
   brainModel TEXT,
   brainSwappedAt DATETIME,
+  externalEndpointUrl TEXT,
   createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
