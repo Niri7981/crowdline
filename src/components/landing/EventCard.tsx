@@ -46,6 +46,12 @@ export function EventCard({ event, isSelected, onSelect }: EventCardProps) {
               <Crosshair className="h-4 w-4" />
               Match Event
             </div>
+            <div
+              className="mt-2 inline-flex border border-[#2b2b2b] px-2 py-1 text-[8px] font-black text-white/45"
+              style={{ fontFamily: "monospace", letterSpacing: "0.18em", textTransform: "uppercase" }}
+            >
+              {event.category}
+            </div>
           </div>
           <div
             className={`industrial-clip-sm border-2 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.22em] ${

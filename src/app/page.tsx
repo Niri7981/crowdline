@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { LandingHero } from "@/components/landing/LandingHero";
@@ -8,12 +8,29 @@ import { EventSelectionSection } from "@/components/landing/EventSelectionSectio
 import { AgentSelectionSection } from "@/components/landing/AgentSelectionSection";
 import { BattlePreviewSection } from "@/components/landing/BattlePreviewSection";
 import { SectionTransition } from "@/components/landing/SectionTransition";
-import { MOCK_EVENTS } from "@/lib/mocks/landing-demo-data";
+import {
+  MOCK_EVENTS,
+  type LandingEvent,
+  type LandingEventCategory,
+} from "@/lib/mocks/landing-demo-data";
 import { useLandingAgents } from "@/lib/landing/use-landing-agents";
 
 type ApiError = {
   error?: string;
 };
+
+type EventCategoryFilter = LandingEventCategory | "All";
+
+const EVENT_WINDOW_SIZE = 3;
+const EVENT_CATEGORY_FILTERS: EventCategoryFilter[] = [
+  "All",
+  "Crypto",
+  "Finance",
+  "Sports",
+  "DeFi",
+  "Macro",
+  "Social",
+];
 
 async function createRound(input: { agentIds: string[]; eventId: string }) {
   const response = await fetch("/api/round", {
@@ -30,6 +47,25 @@ async function createRound(input: { agentIds: string[]; eventId: string }) {
   }
 }
 
+function getFilteredEvents(category: EventCategoryFilter) {
+  if (category === "All") {
+    return MOCK_EVENTS;
+  }
+
+  return MOCK_EVENTS.filter((event) => event.category === category);
+}
+
+function getVisibleEvents(events: LandingEvent[], startIndex: number) {
+  if (events.length <= EVENT_WINDOW_SIZE) {
+    return events;
+  }
+
+  return Array.from({ length: EVENT_WINDOW_SIZE }, (_, offset) => {
+    const eventIndex = (startIndex + offset) % events.length;
+    return events[eventIndex];
+  });
+}
+
 export default function HomePage() {
   const router = useRouter();
   const {
@@ -42,12 +78,53 @@ export default function HomePage() {
   const [isCreating, startCreateTransition] = useTransition();
 
   const [selectedEventId, setSelectedEventId] = useState<string>(MOCK_EVENTS[0].id);
+  const [eventWindowStart, setEventWindowStart] = useState(0);
+  const [selectedEventCategory, setSelectedEventCategory] =
+    useState<EventCategoryFilter>("All");
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
 
-  const selectedEvent = MOCK_EVENTS.find(e => e.id === selectedEventId) || MOCK_EVENTS[0];
+  const filteredEvents = useMemo(
+    () => getFilteredEvents(selectedEventCategory),
+    [selectedEventCategory],
+  );
+  const visibleEvents = useMemo(
+    () => getVisibleEvents(filteredEvents, eventWindowStart),
+    [eventWindowStart, filteredEvents],
+  );
+  const selectedEvent = MOCK_EVENTS.find((event) => event.id === selectedEventId) || MOCK_EVENTS[0];
   const selectedAgents = selectedAgentIds
     .map((agentId) => agents.find((agent) => agent.id === agentId))
     .filter((agent): agent is NonNullable<typeof agent> => Boolean(agent));
+
+  function handleRefreshEvents() {
+    const nextStart =
+      filteredEvents.length > 0
+        ? (eventWindowStart + EVENT_WINDOW_SIZE) % filteredEvents.length
+        : 0;
+    const nextVisibleEvents = getVisibleEvents(filteredEvents, nextStart);
+
+    setEventWindowStart(nextStart);
+    setSelectedEventId(nextVisibleEvents[0]?.id ?? selectedEventId);
+  }
+
+  function handleSelectEventCategory(category: EventCategoryFilter) {
+    const nextEvents = getFilteredEvents(category);
+
+    setSelectedEventCategory(category);
+    setEventWindowStart(0);
+    setSelectedEventId(nextEvents[0]?.id ?? selectedEventId);
+  }
+
+  function handleSelectEvent(eventId: string) {
+    const event = MOCK_EVENTS.find((candidate) => candidate.id === eventId);
+
+    setSelectedEventId(eventId);
+
+    if (event && selectedEventCategory !== "All" && event.category !== selectedEventCategory) {
+      setSelectedEventCategory(event.category);
+      setEventWindowStart(0);
+    }
+  }
 
   function handleSelectAgent(agentId: string) {
     setSelectedAgentIds((currentAgentIds) => {
@@ -109,8 +186,15 @@ export default function HomePage() {
         <div className="acid-grid-overlay absolute inset-0 opacity-25" />
         <div className="relative z-10">
         <EventSelectionSection 
+          activeCategory={selectedEventCategory}
+          categoryOptions={EVENT_CATEGORY_FILTERS}
+          events={MOCK_EVENTS}
+          filteredEventCount={filteredEvents.length}
           selectedEventId={selectedEventId} 
-          onSelectEvent={setSelectedEventId} 
+          visibleEvents={visibleEvents}
+          onRefreshEvents={handleRefreshEvents}
+          onSelectCategory={handleSelectEventCategory}
+          onSelectEvent={handleSelectEvent}
         />
         </div>
       </section>
