@@ -217,11 +217,24 @@ export async function settleRound(
         winnerIdentityKey: settlement.winnerAgentKey,
       },
     );
+    // 这里在干嘛：
+    // 结算写入后重新读取 round 关系快照，再生成 proof payload。
+    // 为什么这么写：
+    // targetRound 是结算前读出来的对象，里面的 event.outcome 和
+    // roundAgent.finalBalance 仍然是旧值；proof 必须承诺结算后的公开事实。
+    // 最后返回什么：
+    // 返回一份已经包含 settled outcome / final balances / settlement 的 round。
+    const settledRound = await tx.round.findUniqueOrThrow({
+      include: roundInclude,
+      where: {
+        id: targetRound.id,
+      },
+    });
 
     const proofPayload = buildBattleProofPayload({
       afterProfiles,
       beforeProfiles,
-      round: targetRound,
+      round: settledRound,
       settledAt,
       settlement,
     });
