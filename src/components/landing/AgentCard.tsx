@@ -110,14 +110,6 @@ export function AgentCardFront({
                 <AgentFallbackIcon agentId={agent.identityKey} color={agent.accent} />
               </div>
             )}
-            <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-              <div className="industrial-clip-sm border-2 border-[#fcee09] bg-[#050505] px-2 py-1 text-[8px] font-black uppercase tracking-[0.14em] text-white">
-                {agent.riskLabel}
-              </div>
-              <div className="industrial-clip-sm border-2 border-black bg-[#fcee09] px-2 py-1 text-[8px] font-black uppercase tracking-[0.14em] text-black">
-                {agent.winRate} WR
-              </div>
-            </div>
           </div>
 
           <div
