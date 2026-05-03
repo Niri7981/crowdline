@@ -1,4 +1,9 @@
-export type AgentBrainProvider = "openai" | "anthropic" | "rules" | "mock";
+export type AgentBrainProvider =
+  | "anthropic"
+  | "external"
+  | "mock"
+  | "openai"
+  | "rules";
 
 export type AgentBrain = {
   provider: AgentBrainProvider;

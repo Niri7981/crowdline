@@ -70,7 +70,8 @@ async function loadBrainsForRound(
         profile.brainProvider === "openai" ||
         profile.brainProvider === "anthropic" ||
         profile.brainProvider === "rules" ||
-        profile.brainProvider === "mock"
+        profile.brainProvider === "mock" ||
+        profile.brainProvider === "external"
           ? profile.brainProvider
           : "rules",
       swappedAt: profile.brainSwappedAt
@@ -103,6 +104,7 @@ function mapAgents(
 function mapRuntimeProvider(value: string | null) {
   if (
     value === "anthropic" ||
+    value === "external" ||
     value === "mock" ||
     value === "openai" ||
     value === "rules"

@@ -1,5 +1,71 @@
 # PLANS.md
 
+## Immediate Plan: External Agent Webhook Entry
+
+### Problem
+
+AgentDuel should not be limited to agents powered by the project owner's model
+keys. For the hackathon story, other builders should be able to bring their own
+agent into the arena as a public identity and let that agent compete through a
+standard decision interface.
+
+### Constraints
+
+- Do not store user API keys.
+- Keep `identityKey`, `runtimeKey`, and `agentKey` separate.
+- Keep the external agent as a public `AgentProfile`, not a raw model.
+- Do not make this a full marketplace or permission system before the demo.
+- Keep round creation robust if an external webhook is offline.
+
+### Product Layer Impact
+
+This expands the Agent Pool layer and reinforces the core thesis: agent identity
+is earned through public battles. External agents can enter the arena, build
+rank, collect match history, and become inspectable competitors instead of just
+being private scripts.
+
+### Technical Architecture
+
+- Add `externalEndpointUrl` to `AgentProfile`.
+- Add `runtimeKey = external-webhook` adapter support.
+- Add a registration API that creates a public external agent identity with a
+  webhook endpoint.
+- At round time, POST the standardized event / bankroll / opponent context to
+  the external endpoint.
+- Validate the returned decision shape and persist it like any other action.
+- If the external endpoint fails, use a visible fallback decision so the demo
+  flow continues.
+
+### Affected Files
+
+- `/Users/irin/agent-duel/PLANS.md`
+- `/Users/irin/agent-duel/prisma/schema.prisma`
+- `/Users/irin/agent-duel/src/lib/server/agents/types.ts`
+- `/Users/irin/agent-duel/src/lib/server/agents/get-agent-pool.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/create-round.ts`
+- `/Users/irin/agent-duel/src/lib/server/agent-runtime/types.ts`
+- `/Users/irin/agent-duel/src/lib/server/agent-runtime/registry.ts`
+- `/Users/irin/agent-duel/src/lib/server/agent-runtime/external-webhook.ts`
+- `/Users/irin/agent-duel/src/app/api/agents/external/route.ts`
+- `/Users/irin/agent-duel/src/app/agents/page.tsx`
+
+### Implementation Order
+
+1. Add schema/type support for external endpoint metadata.
+2. Add the external webhook runtime adapter.
+3. Wire create-round participant snapshots to carry the endpoint.
+4. Add external agent registration API.
+5. Add a small Agents page registration form.
+6. Run Prisma generate/migration, lint, build, and a local API smoke test.
+
+### Risks / Edge Cases
+
+- A webhook can be slow or offline; use timeout and fallback trace.
+- External URL is third-party infrastructure; the app should not send secrets.
+- Hackathon demo should avoid exposing private localhost endpoints unless the
+  user intentionally registers one.
+- A malicious webhook response must be validated before persistence.
+
 ## Immediate Plan: Agent Runtime Brain Closure
 
 ### Problem

@@ -55,6 +55,7 @@ function mapRecordToAgentProfile(
       : null,
     currentRank: record.currentRank,
     currentStreak: record.currentStreak,
+    externalEndpointUrl: record.externalEndpointUrl ?? null,
     id: record.id,
     identityKey: record.identityKey,
     isActive: record.isActive,

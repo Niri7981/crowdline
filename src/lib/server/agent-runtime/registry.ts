@@ -10,6 +10,7 @@ import { runNewsLlmAgent } from "@/lib/runtime/agents/llm-news";
 import { runQuantLlmAgent } from "@/lib/runtime/agents/llm-quant";
 import type { BrainConfig } from "@/lib/runtime/agents/llm";
 
+import { runExternalWebhookAgent } from "./external-webhook";
 import type {
   AgentRuntimeAdapter,
   AgentRuntimeDecisionInput,
@@ -127,6 +128,13 @@ const AGENT_RUNTIME_REGISTRY = new Map<string, AgentRuntimeAdapter>([
     {
       decide: runContrarianAdapter,
       runtimeKey: "contrarian",
+    },
+  ],
+  [
+    "external-webhook",
+    {
+      decide: runExternalWebhookAgent,
+      runtimeKey: "external-webhook",
     },
   ],
   [

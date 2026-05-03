@@ -7,12 +7,13 @@ import type { ArenaEvent } from "@/lib/types/event";
 
 export type AgentRuntimeBrain = {
   model: string | null;
-  provider: "anthropic" | "mock" | "openai" | "rules" | null;
+  provider: "anthropic" | "external" | "mock" | "openai" | "rules" | null;
 };
 
 export type AgentRuntimeParticipant = {
   brain: AgentRuntimeBrain;
   identityKey: string;
+  externalEndpointUrl: string | null;
   name: string;
   riskProfile: AgentPoolRiskProfile;
   roundAgentId: string;

@@ -79,6 +79,7 @@ model AgentProfile {
   brainProvider  String?
   brainModel     String?
   brainSwappedAt DateTime?
+  externalEndpointUrl String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

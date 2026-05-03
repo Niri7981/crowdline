@@ -2,6 +2,7 @@ import type { ArenaEvent } from "@/lib/types/event";
 
 export type AgentDecisionExecutionProvider =
   | "anthropic"
+  | "external"
   | "mock"
   | "openai"
   | "rules";

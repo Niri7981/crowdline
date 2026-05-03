@@ -85,6 +85,7 @@ export async function createRound(input: CreateRoundInput = {}) {
           model: agent.brainModel,
           provider: agent.brainProvider,
         },
+        externalEndpointUrl: agent.externalEndpointUrl,
         identityKey: createdAgent.agentKey,
         name: createdAgent.name,
         riskProfile:

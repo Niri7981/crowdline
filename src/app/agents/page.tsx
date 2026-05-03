@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { type FormEvent, useEffect, useState, useTransition } from "react";
 
 type AgentPoolRiskProfile = "low" | "medium" | "high";
 
 type InternalAgentProfile = {
   brainModel: string | null;
-  brainProvider: "anthropic" | "mock" | "openai" | "rules" | null;
+  brainProvider: "anthropic" | "external" | "mock" | "openai" | "rules" | null;
   brainSwappedAt: string | null;
+  externalEndpointUrl: string | null;
   id: string;
   identityKey: string;
   runtimeKey: string;
@@ -38,6 +39,14 @@ type SeedResult = {
   updated: number;
 };
 
+type ExternalAgentInput = {
+  endpointUrl: string;
+  name: string;
+  riskProfile: AgentPoolRiskProfile;
+  style: string;
+  tagline: string;
+};
+
 async function readAgentPool() {
   const response = await fetch("/api/agents", {
     cache: "no-store",
@@ -64,6 +73,22 @@ async function seedAgentPool() {
   }
 
   return (await response.json()) as SeedResult;
+}
+
+async function registerExternalAgent(input: ExternalAgentInput) {
+  const response = await fetch("/api/agents/external", {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ApiError | null;
+
+    throw new Error(payload?.error ?? "Failed to register external agent.");
+  }
 }
 
 function formatWinRate(agent: InternalAgentProfile) {
@@ -97,6 +122,10 @@ function formatBrainProvider(provider: InternalAgentProfile["brainProvider"]) {
     return "Mock";
   }
 
+  if (provider === "external") {
+    return "External Webhook";
+  }
+
   if (provider === "openai") {
     return "OpenAI";
   }
@@ -120,9 +149,18 @@ export default function AgentsPage() {
   const [agents, setAgents] = useState<InternalAgentProfile[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [seedSummary, setSeedSummary] = useState<string | null>(null);
+  const [externalAgentForm, setExternalAgentForm] = useState<ExternalAgentInput>({
+    endpointUrl: "",
+    name: "",
+    riskProfile: "medium",
+    style: "Builder-hosted strategy",
+    tagline: "Competes through a builder-owned webhook runtime.",
+  });
+  const [externalAgentSummary, setExternalAgentSummary] = useState<string | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isRefreshing, startRefreshTransition] = useTransition();
   const [isSeeding, startSeedTransition] = useTransition();
+  const [isRegisteringExternal, startExternalAgentTransition] = useTransition();
 
   useEffect(() => {
     let cancelled = false;
@@ -195,6 +233,35 @@ export default function AgentsPage() {
     });
   }
 
+  function handleRegisterExternalAgent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setErrorMessage(null);
+    setExternalAgentSummary(null);
+
+    startExternalAgentTransition(async () => {
+      try {
+        await registerExternalAgent(externalAgentForm);
+        const nextAgents = await readAgentPool();
+
+        setAgents(nextAgents);
+        setExternalAgentSummary(
+          `${externalAgentForm.name} entered the public Agent Pool.`,
+        );
+        setExternalAgentForm((current) => ({
+          ...current,
+          endpointUrl: "",
+          name: "",
+        }));
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to register external agent.",
+        );
+      }
+    });
+  }
+
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-50">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-12">
@@ -252,6 +319,138 @@ export default function AgentsPage() {
             {seedSummary}
           </div>
         ) : null}
+
+        {externalAgentSummary ? (
+          <div className="rounded-3xl border border-cyan-500/20 bg-cyan-500/10 px-5 py-4 text-sm text-cyan-200">
+            {externalAgentSummary}
+          </div>
+        ) : null}
+
+        <form
+          className="rounded-3xl border border-cyan-500/20 bg-neutral-900/80 p-6"
+          onSubmit={handleRegisterExternalAgent}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.22em] text-cyan-300">
+                Bring Your Own Agent
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+                Register external webhook agent
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm text-neutral-400">
+                Builders can host their own agent runtime and let AgentDuel send
+                round context to it. The arena stores the public identity and
+                endpoint URL, not model provider API keys.
+              </p>
+            </div>
+            <button
+              className="rounded-full bg-cyan-300 px-5 py-3 text-sm font-medium text-neutral-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-300"
+              disabled={isRegisteringExternal}
+              type="submit"
+            >
+              {isRegisteringExternal ? "Registering..." : "Register Agent"}
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <label className="block">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">
+                Agent Name
+              </span>
+              <input
+                className="mt-2 w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-neutral-100 outline-none transition focus:border-cyan-300"
+                onChange={(event) =>
+                  setExternalAgentForm((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="Builder Alpha"
+                required
+                value={externalAgentForm.name}
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">
+                Webhook Endpoint
+              </span>
+              <input
+                className="mt-2 w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-neutral-100 outline-none transition focus:border-cyan-300"
+                onChange={(event) =>
+                  setExternalAgentForm((current) => ({
+                    ...current,
+                    endpointUrl: event.target.value,
+                  }))
+                }
+                placeholder="https://example.com/agentduel/decide"
+                required
+                type="url"
+                value={externalAgentForm.endpointUrl}
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">
+                Style
+              </span>
+              <input
+                className="mt-2 w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-neutral-100 outline-none transition focus:border-cyan-300"
+                onChange={(event) =>
+                  setExternalAgentForm((current) => ({
+                    ...current,
+                    style: event.target.value,
+                  }))
+                }
+                value={externalAgentForm.style}
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">
+                Risk Profile
+              </span>
+              <select
+                className="mt-2 w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-neutral-100 outline-none transition focus:border-cyan-300"
+                onChange={(event) =>
+                  setExternalAgentForm((current) => ({
+                    ...current,
+                    riskProfile: event.target.value as AgentPoolRiskProfile,
+                  }))
+                }
+                value={externalAgentForm.riskProfile}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
+          </div>
+
+          <label className="mt-3 block">
+            <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">
+              Tagline
+            </span>
+            <input
+              className="mt-2 w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-neutral-100 outline-none transition focus:border-cyan-300"
+              onChange={(event) =>
+                setExternalAgentForm((current) => ({
+                  ...current,
+                  tagline: event.target.value,
+                }))
+              }
+              value={externalAgentForm.tagline}
+            />
+          </label>
+
+          <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4 text-xs text-neutral-400">
+            Expected response:{" "}
+            <code className="text-cyan-200">
+              {"{\"side\":\"yes|no\",\"sizeUsd\":2,\"reason\":\"...\"}"}
+            </code>
+          </div>
+        </form>
 
         {isInitialLoading ? (
           <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-8">
@@ -372,6 +571,11 @@ export default function AgentsPage() {
                     <p className="mt-1 text-neutral-500">
                       {formatBrainSwappedAt(agent.brainSwappedAt)}
                     </p>
+                    {agent.externalEndpointUrl ? (
+                      <p className="mt-1 break-all text-neutral-500">
+                        Endpoint: {agent.externalEndpointUrl}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 

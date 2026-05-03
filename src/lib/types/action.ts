@@ -1,8 +1,8 @@
 export type RoundActionRuntimeSnapshot = {
   brainModel: string | null;
-  brainProvider: "anthropic" | "mock" | "openai" | "rules" | null;
+  brainProvider: "anthropic" | "external" | "mock" | "openai" | "rules" | null;
   executionModel: string | null;
-  executionProvider: "anthropic" | "mock" | "openai" | "rules" | null;
+  executionProvider: "anthropic" | "external" | "mock" | "openai" | "rules" | null;
   executionStatus: "completed" | "failed-fallback" | "mocked" | "rules" | null;
   runtimeKey: string | null;
 };
