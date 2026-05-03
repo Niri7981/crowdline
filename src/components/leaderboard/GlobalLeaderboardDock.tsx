@@ -16,6 +16,7 @@ import Link from "next/link";
 import { type CSSProperties, useEffect, useState } from "react";
 
 import { getLandingAgentVisual } from "@/lib/landing/agent-visual-config";
+import { AGENT_POOL } from "@/lib/server/agents/agent-pool-data";
 
 type LeaderboardDockEntry = {
   badge: string;
@@ -73,16 +74,48 @@ function getRankTone(rank: number) {
   return "#fcee09";
 }
 
+function getFallbackLeaderboard() {
+  return AGENT_POOL.filter((agent) => agent.isActive)
+    .map<LeaderboardDockEntry>((agent) => {
+      const matchCount = agent.totalWins + agent.totalLosses;
+
+      return {
+        badge: agent.badge,
+        bestStreak: agent.bestStreak,
+        currentRank: agent.currentRank,
+        currentStreak: agent.currentStreak,
+        id: agent.identityKey,
+        identityKey: agent.identityKey,
+        name: agent.name,
+        rankDelta:
+          agent.previousRank == null ? 0 : agent.previousRank - agent.currentRank,
+        riskProfile: agent.riskProfile,
+        style: agent.style,
+        totalLosses: agent.totalLosses,
+        totalWins: agent.totalWins,
+        winRate: matchCount === 0 ? null : agent.totalWins / matchCount,
+      };
+    })
+    .sort((left, right) => left.currentRank - right.currentRank)
+    .slice(0, 5);
+}
+
 async function readLeaderboard() {
-  const response = await fetch("/api/leaderboard?limit=5", {
-    cache: "no-store",
-  });
+  try {
+    const response = await fetch("/api/leaderboard?limit=5", {
+      cache: "no-store",
+    });
 
-  if (!response.ok) {
-    throw new Error("Failed to load arena rankings.");
+    if (!response.ok) {
+      return getFallbackLeaderboard();
+    }
+
+    const entries = (await response.json()) as LeaderboardDockEntry[];
+
+    return entries.length > 0 ? entries : getFallbackLeaderboard();
+  } catch {
+    return getFallbackLeaderboard();
   }
-
-  return (await response.json()) as LeaderboardDockEntry[];
 }
 
 export function GlobalLeaderboardDock() {
