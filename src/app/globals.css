@@ -97,16 +97,6 @@ body :where(h1, h2, h3, h4, h5, h6, p, a, button, span, div, li, small, strong, 
   background-color: #fff7a0;
 }
 
-.round-black-text :where(h1, h2, h3, h4, h5, h6, p, a, button, span, div, li, small, strong, em, label) {
-  color: #050505 !important;
-  -webkit-text-fill-color: #050505 !important;
-}
-
-.round-black-text svg {
-  color: #050505 !important;
-  stroke: #050505 !important;
-}
-
 .industrial-clip {
   clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
 }

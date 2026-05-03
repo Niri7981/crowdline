@@ -223,7 +223,7 @@ function ProofHeader({
 function ProofCell({ label, value, accent = "#ffffff" }: { label: string; value: string; accent?: string }) {
   return (
     <div className="border-[4px] border-[#202326] bg-[#111111] p-4">
-       <span className="block font-mono text-[8px] font-black uppercase tracking-[0.2em] text-neutral-500">{label}</span>
+       <span className="block font-mono text-[8px] font-black uppercase tracking-[0.2em] text-neutral-300">{label}</span>
        <p className="mt-2 break-all text-xl font-black uppercase italic tracking-tight" style={{ color: accent }}>{value}</p>
     </div>
   );
@@ -367,7 +367,7 @@ function ImpactCell({
 }) {
   return (
     <div className="border-[3px] border-black bg-black p-3 text-[#fcee09]">
-      <div className="font-mono text-[7px] font-black uppercase tracking-[0.18em] text-neutral-400">
+      <div className="font-mono text-[7px] font-black uppercase tracking-[0.18em] text-neutral-300">
         {label}
       </div>
       <div className="mt-1 truncate font-black uppercase italic text-lg" style={{ color: accent }}>

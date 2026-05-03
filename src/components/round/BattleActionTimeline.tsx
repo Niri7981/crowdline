@@ -22,7 +22,7 @@ export function BattleActionCard({ action }: BattleActionCardProps) {
       style={{ borderColor: themeColor }}
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 font-mono text-[9px] font-black uppercase tracking-[0.2em] text-neutral-500">
+        <div className="flex items-center gap-2 font-mono text-[9px] font-black uppercase tracking-[0.2em] text-neutral-300">
           <Clock className="h-3.5 w-3.5" />
           {action.at}
         </div>
@@ -35,7 +35,7 @@ export function BattleActionCard({ action }: BattleActionCardProps) {
         <div className="font-mono text-[9px] font-black uppercase tracking-[0.24em]" style={{ color: themeColor }}>
           {action.agentName}
         </div>
-        <div className="mt-2 font-black uppercase italic leading-none text-3xl">
+        <div className="mt-2 font-black uppercase italic leading-none text-3xl text-white">
           {action.side === "yes" ? "Buy Yes" : "Fade Crowd"}
         </div>
         <div className="mt-3 text-xl font-black text-[#fcee09]">
@@ -61,7 +61,7 @@ export function BattleActionCard({ action }: BattleActionCardProps) {
 
       {action.trace.length > 0 ? (
         <div className="mt-4 border-t-2 border-[#202326] pt-3">
-          <div className="mb-2 flex items-center gap-2 font-mono text-[8px] font-black uppercase tracking-[0.2em] text-neutral-500">
+          <div className="mb-2 flex items-center gap-2 font-mono text-[8px] font-black uppercase tracking-[0.2em] text-[#fcee09]">
             <Workflow className="h-3 w-3" />
             Runtime Trace
           </div>
@@ -73,7 +73,7 @@ export function BattleActionCard({ action }: BattleActionCardProps) {
                   <div className="font-mono text-[8px] font-black uppercase tracking-[0.16em] text-[#00eaff]">
                     {step.phase} / {step.title}
                   </div>
-                  <p className="mt-0.5 line-clamp-2 text-[10px] font-bold uppercase leading-relaxed text-neutral-500">
+                  <p className="mt-0.5 line-clamp-2 text-[10px] font-bold uppercase leading-relaxed text-neutral-300">
                     {step.detail}
                   </p>
                 </div>
@@ -138,10 +138,10 @@ export function BattleActionTimeline({
           <div className="font-mono text-[9px] font-black uppercase tracking-[0.24em] text-[#ffb000]">
             Oracle
           </div>
-          <div className="mt-3 font-black uppercase italic leading-none text-3xl">
+          <div className="mt-3 font-black uppercase italic leading-none text-3xl text-white">
             {roundStatus === "settled" ? "Winner Declared" : "Settlement Pending"}
           </div>
-          <div className="mt-4 text-sm font-black uppercase tracking-wide text-neutral-400">
+          <div className="mt-4 text-sm font-black uppercase tracking-wide text-neutral-300">
             {roundStatus === "settled"
               ? `${winnerName ?? "Winner"} proof ready`
               : "Record will be anchored"}

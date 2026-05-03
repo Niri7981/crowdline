@@ -662,20 +662,9 @@ export default function RoundPage() {
 
   return (
     <div
-      className="round-black-text relative min-h-screen overflow-x-hidden text-black selection:bg-black selection:text-[#fcee09]"
+      className="relative min-h-screen overflow-x-hidden text-black selection:bg-black selection:text-[#fcee09]"
       style={{ backgroundColor: "#fcee09" }}
     >
-      <style>{`
-        .round-black-text :where(h1, h2, h3, h4, h5, h6, p, a, button, span, div, li, small, strong, em, label) {
-          color: #050505 !important;
-          -webkit-text-fill-color: #050505 !important;
-        }
-
-        .round-black-text svg {
-          color: #050505 !important;
-          stroke: #050505 !important;
-        }
-      `}</style>
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="acid-grid-overlay absolute inset-0 opacity-30" />
         <div className="absolute left-[-12%] top-20 h-40 w-[58%] -skew-x-12 border-y-[6px] border-black bg-[#d8c900]/70" />

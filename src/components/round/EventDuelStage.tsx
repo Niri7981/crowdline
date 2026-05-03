@@ -50,11 +50,11 @@ export function EventDuelStage({
 
 function FactionName({ color, name }: { color: string; name: string }) {
   return (
-    <div className="border-[2px] border-[#202326] bg-[#111111] px-1.5 py-2 md:border-[4px] md:px-4 md:py-5">
+    <div className="border-[2px] border-[#fcee09] bg-[#111111] px-1.5 py-2 shadow-[6px_6px_0_rgba(0,0,0,0.55)] md:border-[4px] md:px-4 md:py-5">
       <div className="font-mono text-[6px] font-black uppercase tracking-[0.08em] md:text-[9px] md:tracking-[0.24em]" style={{ color }}>
         Combatant
       </div>
-      <div className="mt-1 truncate font-black uppercase italic leading-none text-white text-[11px] md:mt-2 md:text-3xl">
+      <div className="mt-1 truncate font-black uppercase italic leading-none text-white text-[11px] md:mt-2 md:text-3xl" style={{ color: "#ffffff" }}>
         {name}
       </div>
     </div>
@@ -71,8 +71,8 @@ function HudTag({
   value: string;
 }) {
   return (
-    <div className="border-[2px] border-[#202326] bg-[#151515] p-2 text-left md:border-[3px] md:p-3">
-      <div className="font-mono text-[6px] font-black uppercase tracking-[0.08em] text-neutral-500 md:text-[8px] md:tracking-[0.2em]">
+    <div className="border-[2px] border-[#fcee09] bg-[#151515] p-2 text-left md:border-[3px] md:p-3">
+      <div className="font-mono text-[6px] font-black uppercase tracking-[0.08em] text-[#fcee09] md:text-[8px] md:tracking-[0.2em]">
         {label}
       </div>
       <div className="mt-1 truncate text-[8px] font-black uppercase tracking-wide md:text-sm" style={{ color: tone }}>
