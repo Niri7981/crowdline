@@ -8,6 +8,12 @@ import { SettlementPanel } from "@/components/round/SettlementPanel";
 import type { RoundState, BankrollBalance } from "@/lib/types/round";
 import type { AgentSummary } from "@/lib/types/agent";
 import type { RoundAction } from "@/lib/types/action";
+import {
+  isDemoRound,
+  readStoredDemoRound,
+  settleDemoRoundState,
+  writeStoredDemoRound,
+} from "@/lib/landing/demo-round-storage";
 import { Zap, Loader2, AlertTriangle, RefreshCw, Swords } from "lucide-react";
 
 type ApiError = {
@@ -69,33 +75,65 @@ const FORCE_BLACK_TEXT_STYLE = {
 };
 
 async function readRound() {
-  const response = await fetch("/api/round", {
-    cache: "no-store",
-  });
+  try {
+    const response = await fetch("/api/round", {
+      cache: "no-store",
+    });
 
-  if (response.status === 404) {
-    return null;
+    if (response.status === 404) {
+      return readStoredDemoRound();
+    }
+
+    if (!response.ok) {
+      const storedRound = readStoredDemoRound();
+
+      if (storedRound) {
+        return storedRound;
+      }
+
+      const payload = (await response.json().catch(() => null)) as ApiError | null;
+      throw new Error(payload?.error ?? "Failed to load duel round.");
+    }
+
+    return (await response.json()) as RoundState;
+  } catch (error) {
+    const storedRound = readStoredDemoRound();
+
+    if (storedRound) {
+      return storedRound;
+    }
+
+    throw error;
   }
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as ApiError | null;
-    throw new Error(payload?.error ?? "Failed to load duel round.");
-  }
-
-  return (await response.json()) as RoundState;
 }
 
 async function createRound() {
-  const response = await fetch("/api/round", {
-    method: "POST",
-  });
+  try {
+    const response = await fetch("/api/round", {
+      method: "POST",
+    });
 
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as ApiError | null;
-    throw new Error(payload?.error ?? "Failed to create duel round.");
+    if (!response.ok) {
+      const storedRound = readStoredDemoRound();
+
+      if (storedRound) {
+        return storedRound;
+      }
+
+      const payload = (await response.json().catch(() => null)) as ApiError | null;
+      throw new Error(payload?.error ?? "Failed to create duel round.");
+    }
+
+    return (await response.json()) as RoundState;
+  } catch (error) {
+    const storedRound = readStoredDemoRound();
+
+    if (storedRound) {
+      return storedRound;
+    }
+
+    throw error;
   }
-
-  return (await response.json()) as RoundState;
 }
 
 function isRecord(value: unknown): value is ProofApiRecord {
@@ -242,6 +280,43 @@ async function readLeaderboard(): Promise<RoundLeaderboardEntry[]> {
   return (await response.json()) as RoundLeaderboardEntry[];
 }
 
+function buildDemoProof(round: RoundState): RoundProofReceipt {
+  return {
+    anchoredAt: new Date().toISOString(),
+    explorerUrl: null,
+    network: "local-demo",
+    onchainProofAddress: `demo-pda-${round.id.slice(-8)}`,
+    onchainSignature: `demo-signature-${round.id.slice(-10)}`,
+    proofHash: `demo-proof-${round.id.slice(-12)}`,
+    proofHashEncoding: "canonical-json-v1",
+    proofVersion: 1,
+    slot: 0,
+    verificationStatus: "verified",
+    verified: true,
+  };
+}
+
+function buildDemoLeaderboard(round: RoundState): RoundLeaderboardEntry[] {
+  const winnerId = round.settlement.winnerAgentId;
+
+  return round.agents.map((agent, index) => {
+    const isWinner = agent.id === winnerId;
+
+    return {
+      bestStreak: isWinner ? 4 : 2,
+      currentRank: isWinner ? 1 : index + 2,
+      currentStreak: isWinner ? 2 : 0,
+      id: agent.id,
+      identityKey: agent.id,
+      name: agent.name,
+      rankDelta: isWinner ? 1 : -1,
+      totalLosses: isWinner ? 2 : 4,
+      totalWins: isWinner ? 8 : 5,
+      winRate: isWinner ? 0.8 : 0.55,
+    };
+  });
+}
+
 function findAgentRoundData(
   round: RoundState,
   index: number,
@@ -350,6 +425,14 @@ export default function RoundPage() {
           setProofErrorMessage(null);
         }
 
+        if (isDemoRound(round)) {
+          if (!cancelled) {
+            setProof(buildDemoProof(round));
+          }
+
+          return;
+        }
+
         const nextProof = await readBattleProof(round.id);
         if (!cancelled) {
           setProof(nextProof);
@@ -386,6 +469,14 @@ export default function RoundPage() {
         if (!cancelled) {
           setIsLeaderboardLoading(true);
           setLeaderboardErrorMessage(null);
+        }
+
+        if (isDemoRound(round)) {
+          if (!cancelled) {
+            setLeaderboard(buildDemoLeaderboard(round));
+          }
+
+          return;
         }
 
         const nextLeaderboard = await readLeaderboard();
@@ -433,6 +524,7 @@ export default function RoundPage() {
     startCreateTransition(async () => {
       try {
         const nextRound = await createRound();
+        writeStoredDemoRound(nextRound);
         setRound(nextRound);
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : "Failed to create duel round.");
@@ -453,10 +545,25 @@ export default function RoundPage() {
   }
 
   function handleSettleRound() {
+    if (!round) {
+      return;
+    }
+
+    const activeRound = round;
+
     setErrorMessage(null);
     setAnchorErrorMessage(null);
     startSettleTransition(async () => {
       try {
+        if (isDemoRound(activeRound)) {
+          const nextRound = settleDemoRoundState(activeRound);
+
+          writeStoredDemoRound(nextRound);
+          setRound(nextRound);
+          setShouldScrollToProof(true);
+          return;
+        }
+
         const { anchor, ...nextRound } = await settleRound();
         setRound(nextRound as RoundState);
         setShouldScrollToProof(true);

@@ -14,6 +14,11 @@ import {
   type LandingEventCategory,
 } from "@/lib/mocks/landing-demo-data";
 import { useLandingAgents } from "@/lib/landing/use-landing-agents";
+import {
+  createDemoRoundState,
+  writeStoredDemoRound,
+} from "@/lib/landing/demo-round-storage";
+import type { RoundState } from "@/lib/types/round";
 
 type ApiError = {
   error?: string;
@@ -45,6 +50,8 @@ async function createRound(input: { agentIds: string[]; eventId: string }) {
     const payload = (await response.json().catch(() => null)) as ApiError | null;
     throw new Error(payload?.error ?? "Failed to create duel round.");
   }
+
+  return (await response.json()) as RoundState;
 }
 
 function getFilteredEvents(category: EventCategoryFilter) {
@@ -148,15 +155,20 @@ export default function HomePage() {
           throw new Error("Choose two arena agents before starting the duel.");
         }
 
-        await createRound({
+        const nextRound = await createRound({
           agentIds: selectedAgents.map((agent) => agent.id),
           eventId: selectedEvent.id,
         });
+        writeStoredDemoRound(nextRound);
         router.push("/round");
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error ? error.message : "Failed to create duel round.",
-        );
+      } catch {
+        const demoRound = createDemoRoundState({
+          agents: selectedAgents,
+          event: selectedEvent,
+        });
+
+        writeStoredDemoRound(demoRound);
+        router.push("/round?demo=1");
       }
     });
   }
