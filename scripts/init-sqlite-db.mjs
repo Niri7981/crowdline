@@ -157,7 +157,9 @@ function seedAgentPool() {
       brainProvider,
       brainModel,
       brainSwappedAt,
-      externalEndpointUrl
+      externalEndpointUrl,
+      createdAt,
+      updatedAt
     ) VALUES (
       @id,
       @identityKey,
@@ -178,14 +180,18 @@ function seedAgentPool() {
       @brainProvider,
       @brainModel,
       @brainSwappedAt,
-      NULL
+      NULL,
+      @now,
+      @now
     )
     ON CONFLICT(identityKey) DO NOTHING
   `);
 
   const seed = db.transaction(() => {
+    const now = new Date().toISOString();
+
     for (const agent of seedAgents) {
-      insert.run(agent);
+      insert.run({ ...agent, now });
     }
   });
 

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 
+import { AGENT_POOL } from "./agent-pool-data";
 import type { GetAgentPoolInput, InternalAgentProfile } from "./types";
 
 // 这里在干嘛：
@@ -71,6 +72,55 @@ function mapRecordToAgentProfile(
   };
 }
 
+function mapSeedToAgentProfile(
+  agent: (typeof AGENT_POOL)[number],
+): InternalAgentProfile {
+  const previousRank = agent.previousRank;
+
+  return {
+    avatarSeed: agent.avatarSeed,
+    badge: agent.badge,
+    bestStreak: agent.bestStreak,
+    brainModel: agent.brainModel ?? null,
+    brainProvider: agent.brainProvider ?? null,
+    brainSwappedAt: agent.brainSwappedAt,
+    currentRank: agent.currentRank,
+    currentStreak: agent.currentStreak,
+    externalEndpointUrl: agent.externalEndpointUrl ?? null,
+    id: agent.identityKey,
+    identityKey: agent.identityKey,
+    isActive: agent.isActive,
+    name: agent.name,
+    previousRank,
+    rankDelta: previousRank == null ? 0 : previousRank - agent.currentRank,
+    riskProfile: agent.riskProfile,
+    runtimeKey: agent.runtimeKey,
+    style: agent.style,
+    tagline: agent.tagline,
+    totalLosses: agent.totalLosses,
+    totalWins: agent.totalWins,
+  };
+}
+
+function getFallbackAgentPool(input: GetAgentPoolInput = {}) {
+  const agents = AGENT_POOL.filter((agent) => {
+    if (!input.includeInactive && !agent.isActive) {
+      return false;
+    }
+
+    return input.runtimeKey ? agent.runtimeKey === input.runtimeKey : true;
+  })
+    .map((agent) => mapSeedToAgentProfile(agent))
+    .sort(
+      (left, right) =>
+        left.currentRank - right.currentRank ||
+        right.totalWins - left.totalWins ||
+        left.name.localeCompare(right.name),
+    );
+
+  return typeof input.limit === "number" ? agents.slice(0, input.limit) : agents;
+}
+
 // 这里在干嘛：
 // 读取整个 Agent Pool，也就是 arena 当前维护的公开参赛者身份列表。
 // 为什么这么写：
@@ -83,16 +133,26 @@ function mapRecordToAgentProfile(
 // 最后返回什么：
 // 返回一个 InternalAgentProfile 数组，而不是原始 Prisma 记录数组。
 export async function getAgentPool(input: GetAgentPoolInput = {}) {
-  const records = await prisma.agentProfile.findMany({
-    orderBy: [{ currentRank: "asc" }, { totalWins: "desc" }, { name: "asc" }],
-    take: input.limit,
-    where: {
-      isActive: input.includeInactive ? undefined : true,
-      runtimeKey: input.runtimeKey,
-    },
-  });
+  try {
+    const records = await prisma.agentProfile.findMany({
+      orderBy: [{ currentRank: "asc" }, { totalWins: "desc" }, { name: "asc" }],
+      take: input.limit,
+      where: {
+        isActive: input.includeInactive ? undefined : true,
+        runtimeKey: input.runtimeKey,
+      },
+    });
 
-  return records.map((record) => mapRecordToAgentProfile(record));
+    if (records.length === 0) {
+      return getFallbackAgentPool(input);
+    }
+
+    return records.map((record) => mapRecordToAgentProfile(record));
+  } catch (error) {
+    console.warn("Falling back to bundled Agent Pool.", error);
+
+    return getFallbackAgentPool(input);
+  }
 }
 
 // 这里在干嘛：
@@ -117,13 +177,31 @@ export async function getTopAgentPool(limit = 3) {
 export async function getAgentPoolEntryById(
   agentId: string,
 ): Promise<InternalAgentProfile | null> {
-  const record = await prisma.agentProfile.findUnique({
-    where: {
-      id: agentId,
-    },
-  });
+  try {
+    const record = await prisma.agentProfile.findUnique({
+      where: {
+        id: agentId,
+      },
+    });
 
-  return record ? mapRecordToAgentProfile(record) : null;
+    if (record) {
+      return mapRecordToAgentProfile(record);
+    }
+
+    return (
+      getFallbackAgentPool({ includeInactive: true }).find(
+        (agent) => agent.id === agentId || agent.identityKey === agentId,
+      ) ?? null
+    );
+  } catch (error) {
+    console.warn("Falling back to bundled Agent Pool entry.", error);
+
+    return (
+      getFallbackAgentPool({ includeInactive: true }).find(
+        (agent) => agent.id === agentId || agent.identityKey === agentId,
+      ) ?? null
+    );
+  }
 }
 
 // 这里在干嘛：
@@ -137,11 +215,29 @@ export async function getAgentPoolEntryById(
 export async function getAgentPoolEntryByIdentityKey(
   identityKey: string,
 ): Promise<InternalAgentProfile | null> {
-  const record = await prisma.agentProfile.findUnique({
-    where: {
-      identityKey,
-    },
-  });
+  try {
+    const record = await prisma.agentProfile.findUnique({
+      where: {
+        identityKey,
+      },
+    });
 
-  return record ? mapRecordToAgentProfile(record) : null;
+    if (record) {
+      return mapRecordToAgentProfile(record);
+    }
+
+    return (
+      getFallbackAgentPool({ includeInactive: true }).find(
+        (agent) => agent.identityKey === identityKey,
+      ) ?? null
+    );
+  } catch (error) {
+    console.warn("Falling back to bundled Agent Pool entry.", error);
+
+    return (
+      getFallbackAgentPool({ includeInactive: true }).find(
+        (agent) => agent.identityKey === identityKey,
+      ) ?? null
+    );
+  }
 }
