@@ -17,6 +17,7 @@ import {
 
 export type LandingAgentBrainProvider =
   | "anthropic"
+  | "external"
   | "mock"
   | "openai"
   | "rules"
@@ -24,6 +25,7 @@ export type LandingAgentBrainProvider =
 
 export type LandingAgent = LandingAgentVisual & {
   badge: string;
+  avatarSeed: string;
   bestStreak: number;
   brain: {
     model: string | null;
@@ -34,6 +36,7 @@ export type LandingAgent = LandingAgentVisual & {
   identityKey: string;
   name: string;
   rank: number;
+  riskProfile: "low" | "medium" | "high";
   runtimeKey: string;
   streak: number;
   style: string;
@@ -45,6 +48,7 @@ export type LandingAgent = LandingAgentVisual & {
 
 type ApiAgent = {
   badge: string;
+  avatarSeed: string;
   bestStreak: number;
   brainModel: string | null;
   brainProvider: LandingAgentBrainProvider;
@@ -55,6 +59,7 @@ type ApiAgent = {
   identityKey: string;
   name: string;
   runtimeKey: string;
+  riskProfile: "low" | "medium" | "high";
   style: string;
   tagline: string;
   totalLosses: number;
@@ -94,6 +99,10 @@ export function formatLandingBrain(agent: LandingAgent) {
     return "MOCK BRAIN";
   }
 
+  if (agent.brain.provider === "external") {
+    return "EXTERNAL";
+  }
+
   return "UNKNOWN";
 }
 
@@ -111,7 +120,13 @@ async function readLandingAgents() {
 
   return apiAgents
     .map<LandingAgent>((agent) => ({
-      ...getLandingAgentVisual(agent.identityKey),
+      ...getLandingAgentVisual(agent.identityKey, {
+        avatarSeed: agent.avatarSeed,
+        name: agent.name,
+        riskProfile: agent.riskProfile,
+        style: agent.style,
+      }),
+      avatarSeed: agent.avatarSeed,
       badge: agent.badge,
       bestStreak: agent.bestStreak,
       brain: {
@@ -123,6 +138,7 @@ async function readLandingAgents() {
       identityKey: agent.identityKey,
       name: agent.name,
       rank: agent.currentRank,
+      riskProfile: agent.riskProfile,
       runtimeKey: agent.runtimeKey,
       streak: agent.currentStreak,
       style: agent.style,
@@ -139,19 +155,23 @@ export function useLandingAgents() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  async function refreshAgents() {
+    const nextAgents = await readLandingAgents();
+
+    setAgents(nextAgents);
+    setErrorMessage(null);
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
       try {
-        const nextAgents = await readLandingAgents();
-
         if (cancelled) {
           return;
         }
 
-        setAgents(nextAgents);
-        setErrorMessage(null);
+        await refreshAgents();
       } catch (error) {
         if (cancelled) {
           return;
@@ -176,5 +196,6 @@ export function useLandingAgents() {
     agents,
     errorMessage,
     isLoading,
+    refreshAgents,
   };
 }

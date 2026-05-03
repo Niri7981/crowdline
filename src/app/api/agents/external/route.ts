@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 
 const externalAgentPayloadSchema = z.object({
+  avatarSeed: z.string().min(2).max(48).default("external-neon"),
   endpointUrl: z.string().url(),
   name: z.string().min(2).max(48),
   riskProfile: z.enum(["low", "medium", "high"]).default("medium"),
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
 
     const agent = await prisma.agentProfile.create({
       data: {
-        avatarSeed: identityKey,
+        avatarSeed: payload.avatarSeed,
         badge: "Challenger",
         brainModel: readEndpointModel(payload.endpointUrl),
         brainProvider: "external",

@@ -36,6 +36,7 @@ export default function HomePage() {
     agents,
     errorMessage: agentErrorMessage,
     isLoading: isLoadingAgents,
+    refreshAgents,
   } = useLandingAgents();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCreating, startCreateTransition] = useTransition();
@@ -128,6 +129,7 @@ export default function HomePage() {
           agents={agents}
           errorMessage={agentErrorMessage}
           isLoading={isLoadingAgents}
+          onAgentCreated={refreshAgents}
           selectedAgentIds={selectedAgentIds}
           onSelectAgent={handleSelectAgent}
         />

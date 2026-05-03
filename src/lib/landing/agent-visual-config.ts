@@ -16,6 +16,13 @@ export type LandingAgentVisual = {
   strengths: string[];
 };
 
+type ExternalAgentVisualInput = {
+  avatarSeed?: string | null;
+  name?: string;
+  riskProfile?: string;
+  style?: string;
+};
+
 export const LANDING_AGENT_VISUALS: Record<string, LandingAgentVisual> = {
   "agent-contrarian": {
     accent: "#42f5c8",
@@ -82,6 +89,84 @@ const FALLBACK_VISUAL: LandingAgentVisual = {
   strengths: ["Adaptive", "Emerging", "Untested"],
 };
 
-export function getLandingAgentVisual(identityKey: string): LandingAgentVisual {
-  return LANDING_AGENT_VISUALS[identityKey] ?? FALLBACK_VISUAL;
+const EXTERNAL_AGENT_VISUALS: Record<string, Pick<LandingAgentVisual, "accent" | "color">> = {
+  "external-cyan": {
+    accent: "#00eaff",
+    color: "#0891b2",
+  },
+  "external-gold": {
+    accent: "#fbbf24",
+    color: "#f59e0b",
+  },
+  "external-neon": {
+    accent: "#39ff14",
+    color: "#10b981",
+  },
+  "external-red": {
+    accent: "#ff1f2d",
+    color: "#dc2626",
+  },
+};
+
+function getRiskLabel(riskProfile?: string): LandingAgentVisual["riskLabel"] {
+  if (riskProfile === "high") {
+    return "AGGRESSIVE";
+  }
+
+  if (riskProfile === "low") {
+    return "CONSERVATIVE";
+  }
+
+  return "BALANCED";
+}
+
+function toCardCodename(name?: string) {
+  if (!name) {
+    return "AGENT";
+  }
+
+  return name
+    .replace(/\s+agent$/i, "")
+    .split(/\s+/)
+    .slice(0, 2)
+    .join(" ")
+    .toUpperCase();
+}
+
+function toArchetype(style?: string) {
+  if (!style) {
+    return "CUSTOM";
+  }
+
+  return style.split(/\s+/).slice(0, 2).join(" ").toUpperCase();
+}
+
+export function getLandingAgentVisual(
+  identityKey: string,
+  externalInput: ExternalAgentVisualInput = {},
+): LandingAgentVisual {
+  const visual = LANDING_AGENT_VISUALS[identityKey];
+
+  if (visual) {
+    return visual;
+  }
+
+  if (identityKey.startsWith("agent-external-")) {
+    const palette =
+      EXTERNAL_AGENT_VISUALS[externalInput.avatarSeed ?? ""] ??
+      EXTERNAL_AGENT_VISUALS["external-neon"];
+
+    return {
+      accent: palette.accent,
+      archetype: toArchetype(externalInput.style),
+      codename: toCardCodename(externalInput.name),
+      color: palette.color,
+      description: externalInput.style ?? "A builder-owned arena agent.",
+      image: "",
+      riskLabel: getRiskLabel(externalInput.riskProfile),
+      strengths: ["Builder Owned", "Webhook Runtime", "Public Identity"],
+    };
+  }
+
+  return FALLBACK_VISUAL;
 }
