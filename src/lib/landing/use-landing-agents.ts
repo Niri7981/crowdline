@@ -6,6 +6,7 @@ import {
   getLandingAgentVisual,
   type LandingAgentVisual,
 } from "./agent-visual-config";
+import { AGENT_POOL } from "@/lib/server/agents/agent-pool-data";
 
 // 这里在干嘛：
 // 把真实 Agent Pool 和落地页视觉配置合并成首页可直接消费的数据。
@@ -66,10 +67,6 @@ type ApiAgent = {
   totalWins: number;
 };
 
-type ApiError = {
-  error?: string;
-};
-
 function computeWinRate(wins: number, losses: number) {
   const total = wins + losses;
 
@@ -78,6 +75,63 @@ function computeWinRate(wins: number, losses: number) {
   }
 
   return `${Math.round((wins / total) * 100)}%`;
+}
+
+function mapApiAgentToLandingAgent(agent: ApiAgent): LandingAgent {
+  return {
+    ...getLandingAgentVisual(agent.identityKey, {
+      avatarSeed: agent.avatarSeed,
+      name: agent.name,
+      riskProfile: agent.riskProfile,
+      style: agent.style,
+    }),
+    avatarSeed: agent.avatarSeed,
+    badge: agent.badge,
+    bestStreak: agent.bestStreak,
+    brain: {
+      model: agent.brainModel,
+      provider: agent.brainProvider,
+      swappedAt: agent.brainSwappedAt,
+    },
+    id: agent.id,
+    identityKey: agent.identityKey,
+    name: agent.name,
+    rank: agent.currentRank,
+    riskProfile: agent.riskProfile,
+    runtimeKey: agent.runtimeKey,
+    streak: agent.currentStreak,
+    style: agent.style,
+    tagline: agent.tagline,
+    totalLosses: agent.totalLosses,
+    totalWins: agent.totalWins,
+    winRate: computeWinRate(agent.totalWins, agent.totalLosses),
+  };
+}
+
+function getFallbackLandingAgents() {
+  return AGENT_POOL.filter((agent) => agent.isActive)
+    .map((agent) =>
+      mapApiAgentToLandingAgent({
+        avatarSeed: agent.avatarSeed,
+        badge: agent.badge,
+        bestStreak: agent.bestStreak,
+        brainModel: agent.brainModel,
+        brainProvider: agent.brainProvider,
+        brainSwappedAt: agent.brainSwappedAt,
+        currentRank: agent.currentRank,
+        currentStreak: agent.currentStreak,
+        id: agent.identityKey,
+        identityKey: agent.identityKey,
+        name: agent.name,
+        riskProfile: agent.riskProfile,
+        runtimeKey: agent.runtimeKey,
+        style: agent.style,
+        tagline: agent.tagline,
+        totalLosses: agent.totalLosses,
+        totalWins: agent.totalWins,
+      }),
+    )
+    .sort((left, right) => left.rank - right.rank);
 }
 
 export function formatLandingBrain(agent: LandingAgent) {
@@ -112,42 +166,18 @@ async function readLandingAgents() {
   });
 
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as ApiError | null;
-    throw new Error(payload?.error ?? "Failed to load agent pool.");
+    console.warn("Using bundled Agent Pool because /api/agents failed.");
+
+    return getFallbackLandingAgents();
   }
 
   const apiAgents = (await response.json()) as ApiAgent[];
 
-  return apiAgents
-    .map<LandingAgent>((agent) => ({
-      ...getLandingAgentVisual(agent.identityKey, {
-        avatarSeed: agent.avatarSeed,
-        name: agent.name,
-        riskProfile: agent.riskProfile,
-        style: agent.style,
-      }),
-      avatarSeed: agent.avatarSeed,
-      badge: agent.badge,
-      bestStreak: agent.bestStreak,
-      brain: {
-        model: agent.brainModel,
-        provider: agent.brainProvider,
-        swappedAt: agent.brainSwappedAt,
-      },
-      id: agent.id,
-      identityKey: agent.identityKey,
-      name: agent.name,
-      rank: agent.currentRank,
-      riskProfile: agent.riskProfile,
-      runtimeKey: agent.runtimeKey,
-      streak: agent.currentStreak,
-      style: agent.style,
-      tagline: agent.tagline,
-      totalLosses: agent.totalLosses,
-      totalWins: agent.totalWins,
-      winRate: computeWinRate(agent.totalWins, agent.totalLosses),
-    }))
-    .sort((left, right) => left.rank - right.rank);
+  if (apiAgents.length === 0) {
+    return getFallbackLandingAgents();
+  }
+
+  return apiAgents.map(mapApiAgentToLandingAgent).sort((left, right) => left.rank - right.rank);
 }
 
 export function useLandingAgents() {
