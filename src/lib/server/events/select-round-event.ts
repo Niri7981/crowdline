@@ -1,4 +1,5 @@
 import type { ArenaEvent } from "@/lib/types/event";
+import { assertSupportedMarketSymbol } from "@/lib/server/market-data/get-live-price";
 
 import { buildDemoMarket } from "@/lib/server/rounds/demo-market";
 
@@ -142,15 +143,39 @@ function getDemoArenaEvent(eventId: string | undefined) {
   return eventId ? DEMO_ARENA_EVENTS.get(eventId) ?? null : null;
 }
 
+function supportsLiveObservation(marketSymbol: string) {
+  try {
+    assertSupportedMarketSymbol(marketSymbol);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function shouldUsePolymarketMarketObservation(poolItem: DemoArenaEvent | InternalEventPoolItem) {
+  return Boolean(
+    poolItem.sourceKey === "polymarket" &&
+      poolItem.externalMarketId &&
+      poolItem.currentPrice != null,
+  );
+}
+
 // Round 层不应该再自己发明事件。
 // 它只应该从内部 Event Pool 里挑一条事件，然后展开成 battle 需要的市场快照。
 export async function selectRoundEvent(
   input: SelectRoundEventInput = {},
 ): Promise<SelectedRoundEvent> {
-  const poolItem =
+  const explicitlySelectedEvent =
     getDemoArenaEvent(input.eventId) ??
-    (input.eventId ? await getEventPoolItemById(input.eventId) : null) ??
-    (await getReadyEventPool(1))[0];
+    (input.eventId ? await getEventPoolItemById(input.eventId) : null);
+  const fallbackLiveEvent =
+    explicitlySelectedEvent == null
+      ? DEMO_ARENA_EVENTS.get("e1") ??
+        (await getReadyEventPool(8)).find((event) =>
+          supportsLiveObservation(event.marketSymbol),
+        ) ?? null
+      : null;
+  const poolItem = explicitlySelectedEvent ?? fallbackLiveEvent;
 
   if (!poolItem) {
     throw new Error("Event Pool is empty.");
@@ -158,15 +183,31 @@ export async function selectRoundEvent(
 
   const market = buildDemoMarket({
     durationSeconds: input.durationSeconds ?? poolItem.durationSeconds,
+    externalMarketId: poolItem.externalMarketId,
     marketSymbol: poolItem.marketSymbol,
+    observationType: shouldUsePolymarketMarketObservation(poolItem)
+      ? "polymarket-price"
+      : "fact-price",
+    question: shouldUsePolymarketMarketObservation(poolItem)
+      ? `Will ${poolItem.yesLabel} price be higher in ${Math.round((input.durationSeconds ?? poolItem.durationSeconds) / 60)} minutes?`
+      : poolItem.question,
+    resolutionSource: shouldUsePolymarketMarketObservation(poolItem)
+      ? "Indexed Polymarket market price"
+      : poolItem.resolutionSource,
+    slug: poolItem.slug,
+    startPrice: poolItem.currentPrice,
     startsAt: input.startsAt,
   });
 
   return {
     eventInput: {
+      externalMarketId: poolItem.externalMarketId,
       outcome: "pending",
-      question: poolItem.question,
-      resolutionSource: poolItem.resolutionSource,
+      observationType: market.observationType,
+      question: market.question,
+      resolutionSource: market.resolutionSource,
+      slug: poolItem.slug,
+      sourceKey: poolItem.sourceKey,
     },
     market,
     poolItem,

@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -198,8 +200,100 @@ function seedAgentPool() {
   seed();
 }
 
+function ensureLiveRoundColumns() {
+  const actionColumns = db.prepare("PRAGMA table_info(Action)").all();
+  const hasSnapshotId = actionColumns.some((column) => column.name === "snapshotId");
+  const roundEventColumns = db.prepare("PRAGMA table_info(RoundEvent)").all();
+  const hasObservationType = roundEventColumns.some(
+    (column) => column.name === "observationType",
+  );
+  const hasSourceKey = roundEventColumns.some((column) => column.name === "sourceKey");
+  const hasExternalMarketId = roundEventColumns.some(
+    (column) => column.name === "externalMarketId",
+  );
+  const hasSlug = roundEventColumns.some((column) => column.name === "slug");
+
+  if (!hasSnapshotId) {
+    db.exec("ALTER TABLE Action ADD COLUMN snapshotId TEXT;");
+  }
+
+  if (!hasObservationType) {
+    db.exec("ALTER TABLE RoundEvent ADD COLUMN observationType TEXT DEFAULT 'fact-price';");
+  }
+
+  if (!hasSourceKey) {
+    db.exec("ALTER TABLE RoundEvent ADD COLUMN sourceKey TEXT;");
+  }
+
+  if (!hasExternalMarketId) {
+    db.exec("ALTER TABLE RoundEvent ADD COLUMN externalMarketId TEXT;");
+  }
+
+  if (!hasSlug) {
+    db.exec("ALTER TABLE RoundEvent ADD COLUMN slug TEXT;");
+  }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS Action_roundId_snapshotId_idx
+      ON Action(roundId, snapshotId);
+  `);
+}
+
+function ensureFactPriceTickTable() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS FactPriceTick (
+      id TEXT PRIMARY KEY NOT NULL,
+      symbol TEXT NOT NULL,
+      price REAL NOT NULL,
+      sourceLabel TEXT NOT NULL,
+      observedAt DATETIME NOT NULL,
+      rawPayloadHash TEXT,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS FactPriceTick_symbol_sourceLabel_observedAt_key
+      ON FactPriceTick(symbol, sourceLabel, observedAt);
+
+    CREATE INDEX IF NOT EXISTS FactPriceTick_symbol_observedAt_idx
+      ON FactPriceTick(symbol, observedAt);
+  `);
+}
+
+function ensureMarketTickTable() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS MarketTick (
+      id TEXT PRIMARY KEY NOT NULL,
+      sourceKey TEXT NOT NULL,
+      marketId TEXT NOT NULL,
+      conditionId TEXT,
+      tokenId TEXT NOT NULL,
+      side TEXT NOT NULL,
+      price REAL NOT NULL,
+      sourceLabel TEXT NOT NULL,
+      observedAt DATETIME NOT NULL,
+      rawPayloadHash TEXT,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS MarketTick_sourceKey_tokenId_observedAt_key
+      ON MarketTick(sourceKey, tokenId, observedAt);
+
+    CREATE INDEX IF NOT EXISTS MarketTick_sourceKey_marketId_observedAt_idx
+      ON MarketTick(sourceKey, marketId, observedAt);
+
+    CREATE INDEX IF NOT EXISTS MarketTick_tokenId_observedAt_idx
+      ON MarketTick(tokenId, observedAt);
+
+    CREATE INDEX IF NOT EXISTS MarketTick_conditionId_idx
+      ON MarketTick(conditionId);
+  `);
+}
+
 try {
   db.exec(initSql);
+  ensureLiveRoundColumns();
+  ensureFactPriceTickTable();
+  ensureMarketTickTable();
   seedAgentPool();
   console.log(`Initialized SQLite schema at ${databasePath}`);
 } finally {

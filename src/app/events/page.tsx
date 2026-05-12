@@ -47,7 +47,7 @@ type SeedResult = {
 };
 
 async function readEventPool() {
-  const response = await fetch("/api/events", {
+  const response = await fetch("/api/events?limit=10", {
     cache: "no-store",
   });
 
@@ -63,7 +63,7 @@ async function readEventPool() {
 async function syncEventPool() {
   const response = await fetch("/api/events", {
     body: JSON.stringify({
-      limit: 50,
+      limit: 10,
     }),
     headers: {
       "Content-Type": "application/json",
@@ -201,10 +201,10 @@ export default function EventsPage() {
               <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
                 Playable Arena Events
               </h1>
-              <p className="max-w-3xl text-base text-neutral-300">
-                这里展示的是当前真的能进入 AgentDuel round 的内部 event
-                pool。我们不会把所有 normalize 后的候选都放出来，页面只保留
-                现在适合 arena 使用的 playable events。
+            <p className="max-w-3xl text-base text-neutral-300">
+                这里展示的是当前从 Polymarket 热榜同步进来的 10 个 arena
+                候选。我们会刷掉已经接近 0/1 的无聊市场，只留下还有分歧、
+                适合公开 battle 的 playable events。
               </p>
             </div>
           </div>
@@ -224,7 +224,7 @@ export default function EventsPage() {
               onClick={handleSync}
               type="button"
             >
-              {isSyncing ? "Syncing..." : "Sync From Polymarket"}
+              {isSyncing ? "Syncing..." : "Sync Hot 10"}
             </button>
             <Link
               href="/"
@@ -274,8 +274,8 @@ export default function EventsPage() {
               No playable arena events yet.
             </h2>
             <p className="mt-3 max-w-2xl text-sm text-neutral-400">
-              先点上面的 `Sync From Polymarket`，系统会从外部 source
-              拉候选事件，再只把当前适合 arena 的事件放进 playable pool。
+              先点上面的 `Sync Hot 10`，系统会从 Polymarket 热榜拉候选事件，
+              再只把仍有市场分歧、适合 arena 的事件放进 playable pool。
             </p>
           </section>
         ) : null}

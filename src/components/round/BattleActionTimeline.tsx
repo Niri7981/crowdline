@@ -1,7 +1,15 @@
 "use client";
 
 import { RoundAction } from "@/lib/types/action";
-import { Brain, Clock, Crosshair, MessageSquareText, Workflow } from "lucide-react";
+import {
+  Brain,
+  CheckCircle2,
+  Clock,
+  Crosshair,
+  MessageSquareText,
+  MoveRight,
+  Workflow,
+} from "lucide-react";
 
 interface BattleActionCardProps {
   action: RoundAction;
@@ -18,68 +26,72 @@ export function BattleActionCard({ action }: BattleActionCardProps) {
 
   return (
     <article
-      className="industrial-clip-sm relative min-w-[280px] border-[4px] bg-[#111111] p-4 text-white"
+      className="industrial-clip-sm group relative min-h-[210px] w-[300px] shrink-0 snap-start border-[4px] bg-[#fcee09] p-3 text-black md:w-[330px]"
       style={{ borderColor: themeColor }}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 font-mono text-[9px] font-black uppercase tracking-[0.2em] text-neutral-300">
-          <Clock className="h-3.5 w-3.5" />
-          {action.at}
+      <div className="pointer-events-none absolute -left-[18px] top-7 hidden h-1 w-8 bg-black md:block" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 font-mono text-[9px] font-black uppercase tracking-[0.2em] text-black/65">
+            <Clock className="h-3.5 w-3.5" />
+            {action.at}
+          </div>
+          <div
+            className="mt-2 truncate font-mono text-[9px] font-black uppercase tracking-[0.2em]"
+            style={{ color: themeColor }}
+          >
+            {action.agentName}
+          </div>
         </div>
-        <div className="border-2 border-black px-2 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-black" style={{ backgroundColor: sideColor }}>
+        <div
+          className="shrink-0 border-2 border-black px-2 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-black"
+          style={{ backgroundColor: sideColor }}
+        >
           {action.side}
         </div>
       </div>
 
-      <div className="mt-4">
-        <div className="font-mono text-[9px] font-black uppercase tracking-[0.24em]" style={{ color: themeColor }}>
-          {action.agentName}
+      <div className="mt-3 grid grid-cols-[1fr_auto] items-end gap-3">
+        <div className="min-w-0">
+          <div className="font-black uppercase italic leading-none text-2xl text-black">
+            {action.side === "yes" ? "Buy Yes" : "Fade Crowd"}
+          </div>
+          <div className="mt-2 flex items-center gap-2 font-mono text-[8px] font-black uppercase tracking-[0.16em] text-black/70">
+            <Brain className="h-3 w-3 shrink-0" />
+            <span className="truncate">{runtimeLabel}</span>
+          </div>
         </div>
-        <div className="mt-2 font-black uppercase italic leading-none text-3xl text-white">
-          {action.side === "yes" ? "Buy Yes" : "Fade Crowd"}
-        </div>
-        <div className="mt-3 text-xl font-black text-[#fcee09]">
+        <div className="text-right text-xl font-black text-black">
           ${action.sizeUsd.toFixed(2)}
         </div>
       </div>
 
-      <div className="mt-4 border-[3px] border-[#fcee09] bg-black p-3">
-        <div className="flex items-center justify-between gap-3 border-b-2 border-[#fcee09] pb-2 font-mono text-[8px] font-black uppercase tracking-[0.18em] text-[#fcee09]">
+      <div className="mt-3 border-[3px] border-black bg-[#111111] p-3">
+        <div className="flex items-center gap-2 font-mono text-[8px] font-black uppercase tracking-[0.18em] text-[#fcee09]">
           <span className="flex items-center gap-2">
             <MessageSquareText className="h-3.5 w-3.5" />
             Model Output
           </span>
-          <span className="flex min-w-0 items-center gap-1 truncate text-[#00eaff]">
-            <Brain className="h-3 w-3 shrink-0" />
-            <span className="truncate">{runtimeLabel}</span>
-          </span>
         </div>
-        <p className="mt-3 line-clamp-5 text-[11px] font-black uppercase leading-relaxed tracking-wide text-white">
+        <p className="mt-2 line-clamp-2 text-[10px] font-black uppercase leading-relaxed tracking-wide text-[#fcee09]">
           {action.reason}
         </p>
       </div>
 
       {action.trace.length > 0 ? (
-        <div className="mt-4 border-t-2 border-[#202326] pt-3">
-          <div className="mb-2 flex items-center gap-2 font-mono text-[8px] font-black uppercase tracking-[0.2em] text-[#fcee09]">
-            <Workflow className="h-3 w-3" />
-            Runtime Trace
-          </div>
-          <ol className="space-y-2">
+        <div className="mt-3 flex items-center gap-2 overflow-hidden border-t-2 border-black/30 pt-2">
+          <Workflow className="h-3 w-3 shrink-0" />
+          <div className="flex min-w-0 gap-1.5 overflow-hidden">
             {action.trace.slice(0, 3).map((step) => (
-              <li key={step.id} className="grid grid-cols-[auto_1fr] gap-2">
-                <span className="mt-0.5 h-2 w-2 border border-black bg-[#fcee09]" />
-                <div className="min-w-0">
-                  <div className="font-mono text-[8px] font-black uppercase tracking-[0.16em] text-[#00eaff]">
-                    {step.phase} / {step.title}
-                  </div>
-                  <p className="mt-0.5 line-clamp-2 text-[10px] font-bold uppercase leading-relaxed text-neutral-300">
-                    {step.detail}
-                  </p>
-                </div>
-              </li>
+              <span
+                key={step.id}
+                className="max-w-[92px] truncate border-2 border-black bg-[#d8c900] px-1.5 py-1 font-mono text-[7px] font-black uppercase tracking-[0.12em] text-black"
+                title={`${step.phase} / ${step.title}`}
+              >
+                {step.phase}
+              </span>
             ))}
-          </ol>
+          </div>
         </div>
       ) : null}
     </article>
@@ -107,6 +119,7 @@ export function BattleActionTimeline({
             at: "01:02",
             id: "mock-oracle-pending",
             reason: "Settlement pending.",
+            snapshotId: null,
             side: "yes" as const,
             sizeUsd: 0,
             trace: [],
@@ -114,39 +127,49 @@ export function BattleActionTimeline({
         ];
 
   return (
-    <section className="industrial-clip border-[6px] border-black bg-[#050505] p-5 text-white">
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b-[4px] border-[#fcee09] pb-4">
+    <section className="industrial-clip border-[6px] border-black bg-[#fcee09] p-5 text-black">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-4 border-b-[4px] border-black pb-4">
         <div>
-          <div className="inline-flex items-center gap-2 border-2 border-[#fcee09] px-3 py-1 font-mono text-[9px] font-black uppercase tracking-[0.24em] text-[#fcee09]">
+          <div className="inline-flex items-center gap-2 border-2 border-black bg-black px-3 py-1 font-mono text-[9px] font-black uppercase tracking-[0.24em] text-[#fcee09]">
             <Crosshair className="h-3.5 w-3.5" />
             Battle Log
           </div>
-          <h3 className="mt-3 font-black uppercase italic leading-none text-4xl">
+          <h3 className="mt-3 font-black uppercase italic leading-none text-3xl md:text-4xl">
             Action Timeline
           </h3>
         </div>
-        <span className="font-mono text-[9px] font-black uppercase tracking-[0.22em] text-[#00eaff]">
-          {timelineActions.length} Entries Recorded
-        </span>
+        <div className="flex items-center gap-3 font-mono text-[9px] font-black uppercase tracking-[0.18em] text-black">
+          <span>{timelineActions.length} Entries</span>
+          <span className="inline-flex items-center gap-1 border-2 border-black bg-[#d8c900] px-2 py-1">
+            Swipe
+            <MoveRight className="h-3.5 w-3.5" />
+          </span>
+        </div>
       </div>
       
-      <div className="flex gap-4 overflow-x-auto pb-3">
-        {timelineActions.map((action) => (
-          <BattleActionCard key={action.id} action={action} />
-        ))}
-        <article className="industrial-clip-sm min-w-[280px] border-[4px] border-[#ffb000] bg-[#111111] p-4 text-white">
-          <div className="font-mono text-[9px] font-black uppercase tracking-[0.24em] text-[#ffb000]">
-            Oracle
-          </div>
-          <div className="mt-3 font-black uppercase italic leading-none text-3xl text-white">
-            {roundStatus === "settled" ? "Winner Declared" : "Settlement Pending"}
-          </div>
-          <div className="mt-4 text-sm font-black uppercase tracking-wide text-neutral-300">
-            {roundStatus === "settled"
-              ? `${winnerName ?? "Winner"} proof ready`
-              : "Record will be anchored"}
-          </div>
-        </article>
+      <div className="relative">
+        <div className="pointer-events-none absolute left-0 right-0 top-8 hidden h-1 bg-black md:block" />
+        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-3 pt-1 [-webkit-overflow-scrolling:touch]">
+          {timelineActions.map((action) => (
+            <BattleActionCard key={action.id} action={action} />
+          ))}
+          <article className="industrial-clip-sm relative min-h-[210px] w-[260px] shrink-0 snap-start border-[4px] border-black bg-[#d8c900] p-3 text-black">
+            <div className="flex items-center justify-between gap-3">
+              <div className="font-mono text-[9px] font-black uppercase tracking-[0.24em] text-black/70">
+                Oracle
+              </div>
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
+            <div className="mt-5 font-black uppercase italic leading-none text-2xl text-black">
+              {roundStatus === "settled" ? "Winner Declared" : "Settlement Pending"}
+            </div>
+            <div className="mt-4 text-xs font-black uppercase leading-relaxed tracking-wide text-black/65">
+              {roundStatus === "settled"
+                ? `${winnerName ?? "Winner"} proof ready`
+                : "Record will be anchored after the result is sealed."}
+            </div>
+          </article>
+        </div>
       </div>
     </section>
   );

@@ -241,7 +241,6 @@ export function buildOpenAiAdapter(config: OpenAiAdapterConfig): LlmAdapter {
           ],
           model: config.model,
           response_format: { type: "json_object" },
-          temperature: 0.4,
         }),
         headers: {
           Authorization: `Bearer ${config.apiKey}`,

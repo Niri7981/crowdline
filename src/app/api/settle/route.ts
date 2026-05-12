@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 import { anchorRoundProof } from "@/lib/server/onchain/anchor-round-proof";
 import { mapRoundToState } from "@/lib/server/rounds/map-round-state";
 import { settleRound } from "@/lib/server/rounds/settle-round";
 
-export async function POST() {
+const settleRoundPayloadSchema = z.object({
+  roundId: z.string().min(1).optional(),
+});
+
+export async function POST(request: Request) {
   try {
+    const rawPayload = (await request.json().catch(() => ({}))) as unknown;
+    const payload = settleRoundPayloadSchema.parse(rawPayload);
     // 这里在干嘛：
     // 结算最新一场 duel，再把它的 proof 锚定到本地链。
     // 为什么这么写：
@@ -15,7 +22,9 @@ export async function POST() {
     // 最后返回什么：
     // 返回 RoundState 加一份 anchor 字段。
     // anchor.ok=true 时附带 signature / pda；ok=false 时附带 error 文案。
-    const round = await settleRound();
+    const round = await settleRound({
+      roundId: payload.roundId,
+    });
     const anchorResult = await anchorRoundProof(round.id);
     const roundState = await mapRoundToState(round);
 
@@ -43,6 +52,16 @@ export async function POST() {
     });
   } catch (error) {
     console.error("Failed to settle round", error);
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          error: "Invalid settle payload.",
+          issues: error.issues,
+        },
+        { status: 400 },
+      );
+    }
 
     return NextResponse.json(
       {

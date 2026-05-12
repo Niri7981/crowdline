@@ -20,23 +20,28 @@ export type BrainConfig = {
 };
 
 function getOpenAiApiMode() {
-  return process.env.OPENAI_API_MODE === "responses" ? "responses" : "chat";
+  return process.env.AGENTDUEL_OPENAI_API_MODE === "responses" ||
+    process.env.OPENAI_API_MODE === "responses"
+    ? "responses"
+    : "chat";
 }
 
 function getOpenAiModel(model: string) {
-  return process.env.OPENAI_MODEL ?? model;
+  return process.env.AGENTDUEL_OPENAI_MODEL ?? process.env.OPENAI_MODEL ?? model;
 }
 
 export function getLlmAdapterForBrain(brain: BrainConfig): LlmAdapter {
   if (brain.provider === "openai") {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey =
+      process.env.AGENTDUEL_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY;
     const model = getOpenAiModel(brain.model);
 
     if (apiKey) {
       return buildOpenAiAdapter({
         apiMode: getOpenAiApiMode(),
         apiKey,
-        baseUrl: process.env.OPENAI_BASE_URL,
+        baseUrl:
+          process.env.AGENTDUEL_OPENAI_BASE_URL ?? process.env.OPENAI_BASE_URL,
         model,
       });
     }

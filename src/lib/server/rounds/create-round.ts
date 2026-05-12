@@ -1,4 +1,8 @@
 import { prisma } from "@/lib/db/prisma";
+import {
+  observeIndexedFactPrice,
+  observeIndexedMarketPrice,
+} from "@/lib/server/market-data/indexed-facts";
 import { runRoundAgentRuntime } from "@/lib/server/agent-runtime/run-round-agent-runtime";
 import type { AgentRuntimeParticipant } from "@/lib/server/agent-runtime/types";
 import { selectRoundAgents } from "@/lib/server/agents/select-round-agents";
@@ -34,9 +38,20 @@ export async function createRound(input: CreateRoundInput = {}) {
     agentIds: input.agentIds,
   });
   const market = selectedEvent.market;
+  const liveObservation = await (
+    market.observationType === "polymarket-price" && market.externalMarketId
+      ? observeIndexedMarketPrice({
+          externalMarketId: market.externalMarketId,
+          roundEndsAt: market.endsAt,
+        })
+      : observeIndexedFactPrice({
+          marketSymbol: market.marketSymbol,
+          roundEndsAt: market.endsAt,
+        })
+  ).catch(() => null);
+  const currentPrice = liveObservation?.price ?? market.currentPrice;
   const roundEvent: Omit<ArenaEvent, "id"> = {
     ...selectedEvent.eventInput,
-    resolutionSource: selectedEvent.poolItem.resolutionSource,
   };
 
   return prisma.$transaction(async (tx) => {
@@ -58,9 +73,13 @@ export async function createRound(input: CreateRoundInput = {}) {
     const event = await tx.roundEvent.create({
       data: {
         outcome: roundEvent.outcome,
+        externalMarketId: roundEvent.externalMarketId,
+        observationType: roundEvent.observationType,
         question: roundEvent.question,
         resolutionSource: roundEvent.resolutionSource,
         roundId: round.id,
+        slug: roundEvent.slug,
+        sourceKey: roundEvent.sourceKey,
         startPrice: market.startPrice,
       },
     });
@@ -108,9 +127,18 @@ export async function createRound(input: CreateRoundInput = {}) {
     const decisions = await runRoundAgentRuntime({
       agents: runtimeAgents,
       bankrollUsd: bankrollPerAgent,
-      currentPrice: market.currentPrice,
+      currentPrice,
       event: eventInput,
       roundId: round.id,
+    });
+
+    const openingSnapshot = await tx.roundPriceSnapshot.create({
+      data: {
+        capturedAt: liveObservation?.timestamp ?? input.startsAt ?? new Date(),
+        price: currentPrice,
+        roundId: round.id,
+        sourceLabel: liveObservation?.sourceLabel ?? roundEvent.resolutionSource,
+      },
     });
 
     for (const decision of decisions) {
@@ -125,6 +153,7 @@ export async function createRound(input: CreateRoundInput = {}) {
           executionStatus: decision.executionStatus,
           roundAgentId: decision.roundAgentId,
           roundId: round.id,
+          snapshotId: openingSnapshot.id,
           runtimeKey: decision.runtimeKey,
           side: decision.side,
           sizeUsd: decision.sizeUsd,
@@ -167,6 +196,9 @@ export async function createRound(input: CreateRoundInput = {}) {
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
         event: true,
+        priceSnapshots: {
+          orderBy: [{ capturedAt: "asc" }, { id: "asc" }],
+        },
         settlement: true,
       },
       where: {

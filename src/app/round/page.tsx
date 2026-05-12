@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { AgentBattleCard } from "@/components/round/AgentBattleCard";
 import { EventDuelStage } from "@/components/round/EventDuelStage";
 import { BattleActionTimeline } from "@/components/round/BattleActionTimeline";
+import { BattlePriceChart } from "@/components/round/BattlePriceChart";
 import { SettlementPanel } from "@/components/round/SettlementPanel";
 import type { RoundState, BankrollBalance } from "@/lib/types/round";
 import type { AgentSummary } from "@/lib/types/agent";
@@ -134,6 +135,23 @@ async function createRound() {
 
     throw error;
   }
+}
+
+async function tickRound(roundId: string) {
+  const response = await fetch("/api/round/tick", {
+    body: JSON.stringify({ roundId }),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ApiError | null;
+    throw new Error(payload?.error ?? "Failed to tick live duel round.");
+  }
+
+  return (await response.json()) as RoundState;
 }
 
 function isRecord(value: unknown): value is ProofApiRecord {
@@ -332,7 +350,7 @@ function findAgentRoundData(
   }
 
   return {
-    action: round.actions.find((entry) => entry.agentId === agent.id),
+    action: [...round.actions].reverse().find((entry) => entry.agentId === agent.id),
     agent,
     balance: round.balances.find((entry) => entry.agentId === agent.id),
   };
@@ -382,8 +400,16 @@ export default function RoundPage() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isCreating, startCreateTransition] = useTransition();
   const [isRefreshing, startRefreshTransition] = useTransition();
+  const [isTicking, startTickTransition] = useTransition();
   const [isSettling, startSettleTransition] = useTransition();
   const proofModuleRef = useRef<HTMLElement | null>(null);
+  const isBusyRef = useRef(false);
+  const isLiveExternalRound =
+    round != null && round.status === "live" && !isDemoRound(round);
+
+  useEffect(() => {
+    isBusyRef.current = isCreating || isRefreshing || isSettling || isTicking;
+  }, [isCreating, isRefreshing, isSettling, isTicking]);
 
   useEffect(() => {
     let cancelled = false;
@@ -515,6 +541,43 @@ export default function RoundPage() {
     }, 350);
   }, [round?.status, shouldScrollToProof]);
 
+  useEffect(() => {
+    if (!isLiveExternalRound) {
+      return;
+    }
+
+    let cancelled = false;
+    let isPolling = false;
+
+    const pollTimer = window.setInterval(() => {
+      if (cancelled || isPolling || isBusyRef.current) {
+        return;
+      }
+
+      isPolling = true;
+
+      void readRound()
+        .then((nextRound) => {
+          if (!cancelled) {
+            setRound(nextRound);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            console.warn("Background round sync failed", error);
+          }
+        })
+        .finally(() => {
+          isPolling = false;
+        });
+    }, 5_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(pollTimer);
+    };
+  }, [isLiveExternalRound, round?.id]);
+
   function handleCreateRound() {
     setErrorMessage(null);
     setProof(null);
@@ -577,7 +640,25 @@ export default function RoundPage() {
     });
   }
 
-  const showBusyState = isCreating || isRefreshing || isSettling;
+  function handleTickRound() {
+    if (!round || round.status !== "live" || isDemoRound(round)) {
+      return;
+    }
+
+    setErrorMessage(null);
+    startTickTransition(async () => {
+      try {
+        const nextRound = await tickRound(round.id);
+        setRound(nextRound);
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to tick live duel round.",
+        );
+      }
+    });
+  }
+
+  const showBusyState = isCreating || isRefreshing || isSettling || isTicking;
 
   if (isInitialLoading) {
     return (
@@ -698,6 +779,11 @@ export default function RoundPage() {
                   ? "Settlement Sealed / Winner Declared / Proof Ready"
                   : "Settlement Pending"}
               </div>
+              {round.status === "live" && !isDemoRound(round) ? (
+                <div className="border-[3px] border-black bg-[#39ff14] px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.22em] text-black">
+                  External Runner / 5s Observation Loop
+                </div>
+              ) : null}
               <button
                 className="industrial-clip-sm flex items-center gap-2 border-[3px] border-black bg-[#fcee09] px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-black disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={showBusyState}
@@ -706,6 +792,17 @@ export default function RoundPage() {
               >
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
                 Sync
+              </button>
+              <button
+                className="industrial-clip-sm flex items-center gap-2 border-[3px] border-black bg-[#00eaff] px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-black disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={
+                  showBusyState || round.status === "settled" || isDemoRound(round)
+                }
+                onClick={handleTickRound}
+                type="button"
+              >
+                <Zap className={`h-4 w-4 ${isTicking ? "animate-pulse" : ""}`} />
+                {isTicking ? "Ticking" : "Tick"}
               </button>
               <button
                 className="industrial-clip-sm flex items-center gap-2 border-[3px] border-black bg-black px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[#fcee09] disabled:cursor-not-allowed disabled:opacity-50"
@@ -800,6 +897,14 @@ export default function RoundPage() {
             leftAgentName={leftAgentData?.agent.name}
             rightAgentName={rightAgentData?.agent.name}
             roundStatus={round.status}
+          />
+
+          <BattlePriceChart
+            actions={round.actions}
+            marketLabel={round.event.question}
+            polymarketSnapshots={round.polymarketSnapshots}
+            priceSnapshots={round.priceSnapshots}
+            roundEndsAt={round.endsAt}
           />
 
           <BattleActionTimeline

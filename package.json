@@ -7,6 +7,8 @@
     "build": "prisma generate && node scripts/init-sqlite-db.mjs && next build",
     "start": "next start",
     "lint": "eslint",
+    "market:indexer": "node scripts/market-indexer.mjs",
+    "round:runner": "node scripts/live-round-runner.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"

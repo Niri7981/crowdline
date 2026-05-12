@@ -100,7 +100,7 @@ export function SettlementPanel({
 
   if (!isSettled) {
     return (
-      <article className="industrial-clip border-[6px] border-black bg-[#050505] p-5 text-white">
+      <article className="industrial-clip border-[6px] border-black bg-[#fcee09] p-5 text-black">
         <ProofHeader status="Awaiting Settlement" />
         <div className="mt-6 grid gap-3 md:grid-cols-4">
           <ProofCell label="Payload" value="Canonical JSON" />
@@ -114,7 +114,7 @@ export function SettlementPanel({
 
   return (
     <article
-      className="industrial-clip relative overflow-hidden border-[6px] bg-black p-5 text-white"
+      className="industrial-clip relative overflow-hidden border-[6px] bg-[#fcee09] p-5 text-black"
       style={{ borderColor: themeColor }}
     >
       <div className="relative z-10">
@@ -122,18 +122,18 @@ export function SettlementPanel({
         <div className="mt-6 grid gap-3 md:grid-cols-4">
           <ProofCell label="Final PnL" value={`+${settlement.pnlUsd.toFixed(2)}`} accent={themeColor} />
           <ProofCell label="Outcome" value={outcome.toUpperCase()} />
-          <ProofCell label="Proof Hash" value={proofHashStatus} accent="#fcee09" />
+          <ProofCell label="Proof Hash" value={proofHashStatus} accent="#050505" />
           <ProofCell label="Status" value={anchorStatus} accent={isVerified ? "#39ff14" : verificationStatus === "mismatch" ? "#ff1f2d" : "#ffb000"} />
         </div>
 
         <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="grid gap-3 md:grid-cols-2">
             <ProofCell label="Network" value={(proof?.network ?? "localnet").toUpperCase()} accent="#00eaff" />
-            <ProofCell label="Program" value="AgentDuel Arena" accent="#fcee09" />
+            <ProofCell label="Program" value="AgentDuel Arena" accent="#050505" />
             <ProofCell label="Tx Signature" value={formatHash(proof?.onchainSignature)} accent={hasLocalTx ? "#39ff14" : "#ffb000"} />
             <ProofCell label="Proof PDA" value={formatHash(proof?.onchainProofAddress)} accent="#ffb000" />
             <ProofCell label="Slot" value={proof?.slot == null ? "Pending" : proof.slot.toString()} accent="#00eaff" />
-            <ProofCell label="Anchored At" value={formatTimestamp(proof?.anchoredAt)} accent="#ffffff" />
+            <ProofCell label="Anchored At" value={formatTimestamp(proof?.anchoredAt)} accent="#050505" />
           </div>
 
           <ReputationImpact
@@ -147,7 +147,7 @@ export function SettlementPanel({
           />
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-[4px] border-[#202326] bg-[#111111] p-4">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-[4px] border-black bg-[#d8c900] p-4">
            <div
              className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.2em]"
              style={{ color: isVerified ? "#39ff14" : verificationStatus === "mismatch" ? "#ff1f2d" : "#ffb000" }}
@@ -206,8 +206,8 @@ function ProofHeader({
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <div className="inline-flex items-center gap-2 border-2 border-[#ffb000] px-3 py-1 font-mono text-[9px] font-black uppercase tracking-[0.24em] text-[#ffb000]">
+        <div>
+        <div className="inline-flex items-center gap-2 border-2 border-black bg-black px-3 py-1 font-mono text-[9px] font-black uppercase tracking-[0.24em] text-[#ffb000]">
           <Zap className="h-3.5 w-3.5" />
           Onchain Proof Module
         </div>
@@ -220,10 +220,10 @@ function ProofHeader({
   );
 }
 
-function ProofCell({ label, value, accent = "#ffffff" }: { label: string; value: string; accent?: string }) {
+function ProofCell({ label, value, accent = "#050505" }: { label: string; value: string; accent?: string }) {
   return (
-    <div className="border-[4px] border-[#202326] bg-[#111111] p-4">
-       <span className="block font-mono text-[8px] font-black uppercase tracking-[0.2em] text-neutral-300">{label}</span>
+    <div className="border-[4px] border-black bg-[#d8c900] p-4">
+       <span className="block font-mono text-[8px] font-black uppercase tracking-[0.2em] text-black/70">{label}</span>
        <p className="mt-2 break-all text-xl font-black uppercase italic tracking-tight" style={{ color: accent }}>{value}</p>
     </div>
   );
@@ -367,7 +367,7 @@ function ImpactCell({
 }) {
   return (
     <div className="border-[3px] border-black bg-black p-3 text-[#fcee09]">
-      <div className="font-mono text-[7px] font-black uppercase tracking-[0.18em] text-neutral-300">
+      <div className="font-mono text-[7px] font-black uppercase tracking-[0.18em] text-black/65">
         {label}
       </div>
       <div className="mt-1 truncate font-black uppercase italic text-lg" style={{ color: accent }}>

@@ -22,6 +22,7 @@ model Round {
   agents           RoundAgent[]
   actions          Action[]
   actionTraceSteps ActionTraceStep[]
+  priceSnapshots   RoundPriceSnapshot[]
   settlement       Settlement?
   battleProof      BattleProofRecord?
 }
@@ -92,6 +93,10 @@ model RoundEvent {
   roundId          String   @unique
   question         String
   resolutionSource String
+  observationType  String?  @default("fact-price")
+  sourceKey        String?
+  externalMarketId String?
+  slug             String?
   startPrice       Float
   endPrice         Float?
   outcome          String
@@ -123,6 +128,7 @@ model Action {
   id                String     @id @default(cuid())
   roundId           String
   roundAgentId      String
+  snapshotId        String?
   side              String
   sizeUsd           Float
   reason            String
@@ -135,10 +141,12 @@ model Action {
   createdAt         DateTime   @default(now())
   round             Round      @relation(fields: [roundId], references: [id], onDelete: Cascade)
   roundAgent        RoundAgent @relation(fields: [roundAgentId], references: [id], onDelete: Cascade)
+  snapshot          RoundPriceSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
   traceSteps        ActionTraceStep[]
 
   @@index([roundId])
   @@index([roundAgentId])
+  @@index([roundId, snapshotId])
   @@index([runtimeKey])
   @@index([brainProvider, brainModel])
 }
@@ -192,4 +200,49 @@ model BattleProofRecord {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   round               Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+}
+
+model FactPriceTick {
+  id             String   @id @default(cuid())
+  symbol         String
+  price          Float
+  sourceLabel    String
+  observedAt     DateTime
+  rawPayloadHash String?
+  createdAt      DateTime @default(now())
+
+  @@unique([symbol, sourceLabel, observedAt])
+  @@index([symbol, observedAt])
+}
+
+model MarketTick {
+  id             String   @id @default(cuid())
+  sourceKey      String
+  marketId       String
+  conditionId    String?
+  tokenId        String
+  side           String
+  price          Float
+  sourceLabel    String
+  observedAt     DateTime
+  rawPayloadHash String?
+  createdAt      DateTime @default(now())
+
+  @@unique([sourceKey, tokenId, observedAt])
+  @@index([sourceKey, marketId, observedAt])
+  @@index([tokenId, observedAt])
+  @@index([conditionId])
+}
+
+model RoundPriceSnapshot {
+  id          String   @id @default(cuid())
+  roundId      String
+  price       Float
+  sourceLabel String
+  capturedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  round       Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  actions     Action[]
+
+  @@index([roundId, capturedAt])
 }

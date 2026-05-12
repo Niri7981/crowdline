@@ -1,5 +1,566 @@
 # PLANS.md
 
+## Current Master Plan: Identity-Proof Arena
+
+### Goal
+
+AgentDuel should prove one core truth:
+
+**agents earn public identity through repeated, trustworthy battles.**
+
+The near-term product is not a generic prediction dashboard.
+The near-term product is:
+
+- fixed public agents
+- curated internal Event Pool
+- short-horizon Polymarket battle rounds
+- real external market observation
+- visible settlement and reputation movement
+
+### Current Product Read
+
+What is already meaningfully working:
+
+- hot Polymarket events can feed the internal Event Pool
+- rounds can be created from real external events
+- `polymarket-price` rounds can tick from `MarketTick`
+- settlement can resolve from indexed market price
+- LLM-backed agents can return real decisions again
+
+What still makes the arena feel not fully real:
+
+- selected markets are not yet auto-observed end to end
+- LLM failure still has fallback semantics that are too soft for a trusted arena
+- agent context is still thin relative to the ambition of agent identity
+- evaluation is not yet formalized, so iteration still relies too much on feel
+- identity / reputation surfaces are not yet the strongest emotional layer
+
+### Product Layer Impact
+
+This roadmap strengthens all core product layers in order:
+
+1. event source layer
+2. event pool layer
+3. round / battle layer
+4. settlement / proof layer
+5. leaderboard / profile / reputation layer
+
+### Technical Architecture
+
+The next system shape should be:
+
+1. external source -> internal Event Pool -> round creation
+2. selected live round -> automatic market observation -> `MarketTick`
+3. `MarketTick` + structured context -> agent runtime decision
+4. trusted tick / settle pipeline -> reputation update
+5. replayable history -> evaluation harness -> better agents over time
+
+### Phase Roadmap
+
+#### Phase 1: Stable Live Market Loop
+
+##### Problem
+
+The arena now has the right data model direction, but the live market loop is
+still partly manual. A selected market should automatically become a watched
+market while the round is live.
+
+##### Tasks
+
+1. Make the market indexer automatically discover active live rounds.
+2. Extract each live round's `externalMarketId` / slug into a watchlist.
+3. Continuously write `MarketTick` for watched Polymarket markets.
+4. Fail loudly when a live `polymarket-price` round lacks fresh indexed ticks.
+5. Run a full local smoke test: create -> auto-observe -> tick -> settle.
+
+##### Affected Files
+
+- `/Users/irin/agent-duel/scripts/market-indexer.mjs`
+- `/Users/irin/agent-duel/src/lib/server/market-data/indexed-facts.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/create-round.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/tick-live-round.ts`
+- `/Users/irin/agent-duel/src/lib/server/settlement/resolvers/price-threshold.ts`
+- `/Users/irin/agent-duel/src/app/api/settle/route.ts`
+
+##### Acceptance
+
+- selecting a Polymarket event is enough to start observation
+- no manual slug handoff is required for the active round path
+- tick and settle read the same indexed market source
+- stale or missing market data is explicit, not hidden
+
+#### Phase 2: Trusted Battle Semantics
+
+##### Problem
+
+The system can now run real LLM calls again, but a failed LLM execution should
+not quietly blend into a normal trusted battle result.
+
+##### Tasks
+
+1. Define round / action trust states for degraded runtime execution.
+2. Mark `failed-fallback` actions as non-trusted battle evidence.
+3. Decide whether a degraded agent invalidates the whole round or only that
+   agent's battle proof.
+4. Surface trust state in the round response and settlement path.
+5. Prevent reputation updates from pretending degraded battles were fully real.
+
+##### Affected Files
+
+- `/Users/irin/agent-duel/src/lib/server/agent-runtime/run-round-agent-runtime.ts`
+- `/Users/irin/agent-duel/src/lib/runtime/agents/llm/llm-decide.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/map-round-state.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/settle-round.ts`
+- `/Users/irin/agent-duel/src/lib/server/reputation/build-reputation-effects.ts`
+- `/Users/irin/agent-duel/src/lib/types/action.ts`
+- `/Users/irin/agent-duel/src/lib/types/round.ts`
+
+##### Acceptance
+
+- LLM failure no longer masquerades as clean arena proof
+- degraded actions are visible in battle state
+- reputation movement respects trust boundaries
+
+#### Phase 3: Stronger Agent Context
+
+##### Problem
+
+The current agent input is still too thin. To make identity meaningful, agents
+need richer observation of the battle environment, not just a single latest
+price.
+
+##### Tasks
+
+1. Feed recent `MarketTick` windows into LLM-backed agents.
+2. Add short-horizon momentum / volatility / reversal features.
+3. Add round clock context such as time remaining and tick cadence.
+4. Standardize a compact observation packet shared across agent runtimes.
+5. Keep reasons concise while making the decision surface more grounded.
+
+##### Affected Files
+
+- `/Users/irin/agent-duel/src/lib/server/market-data/indexed-facts.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/tick-live-round.ts`
+- `/Users/irin/agent-duel/src/lib/runtime/agents/llm/llm-decide.ts`
+- `/Users/irin/agent-duel/src/lib/runtime/agents/llm-news.ts`
+- `/Users/irin/agent-duel/src/lib/runtime/agents/llm-quant.ts`
+- `/Users/irin/agent-duel/src/lib/server/agent-runtime/types.ts`
+
+##### Acceptance
+
+- agents can see structured recent market behavior
+- different agent identities can express visibly different styles
+- decisions become more repeatable and less arbitrary
+
+#### Phase 4: Evaluation Harness v1
+
+##### Problem
+
+We need a repeatable way to test whether an agent identity actually improved,
+or whether a change only made the demo feel better.
+
+##### Tasks
+
+1. Define a replayable evaluation input based on historical `MarketTick`.
+2. Re-run agent runtimes against fixed historical market windows.
+3. Settle replayed decisions on future real market movement.
+4. Report core metrics: win rate, pnl proxy, drawdown, flip rate,
+   conviction distribution.
+5. Compare agents, prompts, models, and context versions without touching live
+   reputation.
+
+##### Affected Files
+
+- `/Users/irin/agent-duel/PLANS.md`
+- `/Users/irin/agent-duel/package.json`
+- `/Users/irin/agent-duel/scripts/`
+- `/Users/irin/agent-duel/src/lib/runtime/agents/`
+- `/Users/irin/agent-duel/src/lib/server/market-data/`
+- `/Users/irin/agent-duel/src/lib/types/`
+
+##### Acceptance
+
+- we can run an offline evaluation pass locally
+- the same historical slice produces comparable results across runs
+- agent changes can be judged with evidence instead of instinct alone
+
+#### Phase 5: Identity And Proof Surfaces
+
+##### Problem
+
+Even with real battle data, the product will not land if identity, ranking, and
+proof are not the most legible part of the experience.
+
+##### Tasks
+
+1. Strengthen leaderboard movement and settlement payoff.
+2. Expand agent profile surfaces: recent battles, style, streaks, badges,
+   trusted vs degraded record.
+3. Make battle detail pages emphasize why an agent's public identity changed.
+4. Keep charts as evidence, not the main character.
+5. Prepare onchain / durable proof hooks around battle history and reputation.
+
+##### Affected Files
+
+- `/Users/irin/agent-duel/src/app/round/page.tsx`
+- `/Users/irin/agent-duel/src/components/round/SettlementPanel.tsx`
+- `/Users/irin/agent-duel/src/app/battles/[roundId]/page.tsx`
+- `/Users/irin/agent-duel/src/app/leaderboard/page.tsx`
+- `/Users/irin/agent-duel/src/lib/server/reputation/`
+- `/Users/irin/agent-duel/src/lib/server/battles/`
+
+##### Acceptance
+
+- a battle ending visibly changes agent public status
+- users can inspect trusted history, not just the latest chart
+- identity and proof clearly dominate the product narrative
+
+#### Phase 6: Learning Loop Preparation
+
+##### Problem
+
+RL may matter later, but it should only be added after the environment,
+evaluation, and trust boundary are solid.
+
+##### Tasks
+
+1. Capture evaluation-ready decision datasets.
+2. Define reward signals aligned with public battle performance.
+3. Separate live identity logic from experimental training loops.
+4. Test offline policy updates before any live learning path.
+5. Keep the public arena deterministic enough to remain credible.
+
+##### Acceptance
+
+- the project has a clean bridge from evaluation to future learning work
+- RL remains a later optimization layer, not a premature dependency
+
+## Immediate Plan: Hot Polymarket Event Pool
+
+### Problem
+
+The current selectable events can feel stale or one-sided. Many external
+markets have already converged near 0/1, which removes the spectator tension
+AgentDuel needs for a public arena round.
+
+### Constraints
+
+- Polymarket stays an input layer, not the product center.
+- Keep the internal Event Pool as the arena boundary.
+- Use the local proxy when pulling Polymarket data.
+- Prefer a small, curated list: 10 hot events with real market disagreement.
+- Do not break the existing round path while non-price Polymarket settlement is
+  still being wired.
+
+### Product Layer Impact
+
+This improves the event source layer and Event Pool layer:
+
+- hot external markets become the default event intake
+- boring one-sided events are filtered out
+- the homepage selection experience reflects current external attention
+- the arena still presents events as battle objectives, not as a market browser
+
+### Technical Architecture
+
+- Add a reusable hot Polymarket candidate fetcher.
+- Filter candidates by active/open status, future deadline, volume, and YES
+  price disagreement.
+- Make Event Pool sync default to 10 hot Polymarket candidates.
+- Keep `/api/events?source=polymarket-hot` as a direct debug/read endpoint.
+- Make the homepage event selector read internal Event Pool items.
+
+### Affected Files
+
+- `/Users/irin/agent-duel/PLANS.md`
+- `/Users/irin/agent-duel/src/lib/server/events/get-hot-polymarket-events.ts`
+- `/Users/irin/agent-duel/src/lib/server/events/seed-event-pool.ts`
+- `/Users/irin/agent-duel/src/app/api/events/route.ts`
+- `/Users/irin/agent-duel/src/app/events/page.tsx`
+- `/Users/irin/agent-duel/src/app/page.tsx`
+
+### Implementation Order
+
+1. Expand hot Polymarket fetching so it can reliably find 10 interesting
+   future markets.
+2. Make Event Pool sync consume that source by default.
+3. Default event reads/syncs to 10 hot items.
+4. Point homepage event selection at the internal Event Pool.
+5. Run lint and smoke-check the API.
+
+### Risks / Edge Cases
+
+- Polymarket can return active event wrappers that contain stale or closed
+  child markets; filter at the market level too.
+- If fewer than 10 markets pass the disagreement filter, return the best
+  available set instead of filling with one-sided events.
+- Non-price Polymarket events still need a dedicated YES/NO market tick
+  settlement path before every hot event can fully settle as a real round.
+
+## Immediate Plan: Indexed Fact Price Layer
+
+### Problem
+
+The live round loop reads public prices, but it still does so inside the round
+tick / settlement path. That makes the arena feel less real because there is no
+independent fact stream being indexed before agents act.
+
+### Constraints
+
+- Keep the first slice narrow: indexed asset prices before broad market
+  indexing.
+- Keep round orchestration separate from external source polling.
+- Do not scrape HTML; use public JSON APIs.
+- Preserve the existing live round API and local runner behavior.
+- Keep failures visible when the indexer has not produced fresh facts.
+
+### Product Layer Impact
+
+This strengthens the event source / fact layer and makes public battle proof
+more credible:
+
+- external prices become a durable fact stream
+- round snapshots can cite an indexed fact tick
+- settlement can resolve from facts already observed near the deadline
+- spectators can distinguish arena decisions from the external world feed
+
+### Technical Architecture
+
+- Add `FactPriceTick` as the indexed asset-price table.
+- Add a Node.js indexer script that polls supported symbols and writes fact
+  ticks.
+- Add a server helper that reads the latest indexed fact and converts it into
+  existing market observation semantics.
+- Make live round ticking consume indexed facts instead of directly fetching
+  external prices.
+- Make settlement resolve from the indexed fact closest to the round deadline.
+
+### Affected Files
+
+- `/Users/irin/agent-duel/PLANS.md`
+- `/Users/irin/agent-duel/prisma/schema.prisma`
+- `/Users/irin/agent-duel/prisma/init.sql`
+- `/Users/irin/agent-duel/scripts/init-sqlite-db.mjs`
+- `/Users/irin/agent-duel/scripts/market-indexer.mjs`
+- `/Users/irin/agent-duel/package.json`
+- `/Users/irin/agent-duel/src/lib/server/market-data/indexed-facts.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/create-round.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/tick-live-round.ts`
+- `/Users/irin/agent-duel/src/lib/server/settlement/resolvers/price-threshold.ts`
+
+### Implementation Order
+
+1. Add the indexed fact schema and SQLite init support.
+2. Add the reusable indexed fact read helper.
+3. Add the Node.js polling indexer script.
+4. Switch create/tick/settlement to consume indexed facts.
+5. Run Prisma generate, lint, and local smoke checks.
+
+### Risks / Edge Cases
+
+- If the indexer is not running, tick should fail clearly instead of silently
+  pretending it observed a fresh fact.
+- Create round can use event pool fallback only as a bootstrap; tick/settlement
+  should prefer indexed facts.
+- Deadline settlement may need a tolerance window if the indexer missed a few
+  seconds.
+
+## Immediate Plan: Polymarket Market Price Indexing
+
+### Problem
+
+The indexed fact layer now records true asset prices, but the arena still lacks
+the external market-consensus curve from Polymarket. For spectator clarity,
+AgentDuel should separate:
+
+- fact price: what the external world says SOL/BTC/ETH is worth
+- market price: what a Polymarket YES/NO market currently implies
+
+### Constraints
+
+- Keep Polymarket as an input layer, not the product center.
+- Use public Gamma/CLOB JSON APIs; do not scrape HTML.
+- Do not require Polymarket trading auth for read-only indexing.
+- If Gamma slug resolution is unavailable, allow direct token-id config so the
+  indexer can still run.
+
+### Product Layer Impact
+
+This adds the missing external market-consensus stream:
+
+- agents can later compare fact movement with market belief movement
+- the battle chart can show public market sentiment separately from settlement
+  facts
+- event pool entries can eventually link to real Polymarket market identities
+
+### Technical Architecture
+
+- Add `MarketTick` as a separate table from `FactPriceTick`.
+- Resolve Polymarket market metadata from Gamma by slug when available.
+- Read YES/NO token prices from Polymarket CLOB `/price`.
+- Write one `MarketTick` per side per observed timestamp.
+- Keep the existing fact indexer path alive even when Polymarket is temporarily
+  unreachable.
+
+### Affected Files
+
+- `/Users/irin/agent-duel/PLANS.md`
+- `/Users/irin/agent-duel/prisma/schema.prisma`
+- `/Users/irin/agent-duel/prisma/init.sql`
+- `/Users/irin/agent-duel/scripts/init-sqlite-db.mjs`
+- `/Users/irin/agent-duel/scripts/market-indexer.mjs`
+
+### Implementation Order
+
+1. Add `MarketTick` schema/init support.
+2. Extend `market-indexer.mjs` with optional Polymarket config.
+3. Support slug auto-resolution via Gamma.
+4. Support direct token-id config as a fallback.
+5. Run init/generate/lint and a local indexer smoke test.
+
+### Risks / Edge Cases
+
+- Gamma can be slow or temporarily unreachable; direct token-id config preserves
+  demo control.
+- CLOB token price requests can fail for stale or closed markets.
+- Polymarket price is market sentiment, not settlement fact; keep it separate
+  from `FactPriceTick`.
+
+## Immediate Plan: Live Round Runner And Visible Battle Curves
+
+### Problem
+
+The repo can already persist repeated `priceSnapshots` and repeated `Action`
+writes, but the live battle loop is not yet reliably legible end to end:
+
+- the local runner can attach to a stale round because it trusts snapshot-time
+  deadline math instead of the round's real deadline
+- the `/round` chart still fails to render reliably because the current
+  responsive chart container can collapse to zero size
+- the page does not yet expose the real round timing needed for a true live
+  countdown and a stable external observation loop
+
+### Constraints
+
+- Keep the arena framing; do not turn `/round` into a trading terminal.
+- Preserve `priceSnapshots` as the base market proof layer.
+- Preserve repeated `Action` rows as the public battle layer.
+- Keep settlement on the real fact path; do not replace it with a demo resolver.
+- Prefer the smallest slice that makes the round visibly alive before adding
+  more market-data sophistication.
+
+### Product Layer Impact
+
+This strengthens the round / battle layer and keeps the identity thesis clear:
+
+- the market curve becomes a visible public fact layer
+- each agent gets a visible conviction curve over time
+- the battle can keep advancing through a real 5-second observation cadence
+- spectators can actually watch public proof being built before settlement
+
+### Technical Architecture
+
+- Expose `startsAt` and `endsAt` through `RoundState` so the runner and UI can
+  reason about the real round clock instead of stale snapshot-relative values.
+- Update the local runner to use round-level deadline semantics and keep moving
+  forward across live rounds more reliably.
+- Replace the fragile chart auto-sizing path with an explicit measured chart
+  width so the 3-curve battle view consistently renders on `/round`.
+- Keep `priceSnapshots` as the market base line and render one exposure line
+  per agent plus action markers.
+
+### Affected Files
+
+- `/Users/irin/agent-duel/PLANS.md`
+- `/Users/irin/agent-duel/src/lib/types/round.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/map-round-state.ts`
+- `/Users/irin/agent-duel/src/app/round/page.tsx`
+- `/Users/irin/agent-duel/src/components/round/BattlePriceChart.tsx`
+- `/Users/irin/agent-duel/scripts/live-round-runner.mjs`
+
+### Implementation Order
+
+1. Expose real round timing in API state.
+2. Make the runner use real deadline timing and continue more safely.
+3. Replace the chart sizing path so axes and curves render reliably.
+4. Run lint and a local live runner smoke test.
+5. Re-open `/round` and verify that the battle visibly moves.
+
+### Risks / Edge Cases
+
+- Historical snapshot-level `timeToDeadline` should remain snapshot-relative for
+  tooltip proof; the live countdown must come from round-level timing instead.
+- If settlement fails because the external fact source is unavailable, the
+  runner should fail loudly instead of silently pretending the round resolved.
+- The first visible curve point still needs a bootstrap rule so a one-snapshot
+  round does not look empty.
+
+## Immediate Plan: Live Round Observation Semantics
+
+### Problem
+
+The live round tick path can already fetch a fresh external price and persist a
+new `priceSnapshot`, but the market-data boundary still speaks in bare price
+points. That makes it harder to prove what changed between ticks and harder for
+agents or the UI to reason about fresh external re-evaluation.
+
+### Constraints
+
+- Keep the existing `priceSnapshots` table as the persisted proof layer.
+- Do not introduce a heavier market subscription or historical sync system in
+  this pass.
+- Keep settlement compatible with the current fact-based resolver path.
+- Prefer computed observation metadata over new database columns for now.
+
+### Product Layer Impact
+
+This strengthens the round / battle layer. Each tick becomes a clearer public
+observation cycle:
+
+- fresh external state arrives
+- market movement becomes legible
+- agents can later explain whether they held, resized, or flipped
+
+### Technical Architecture
+
+- Promote the current market-data read boundary into an observation helper.
+- Keep raw latest-price fetch support, but add observation semantics on top:
+  `price`, `timestamp`, `sourceLabel`, `delta`, `pctChange`,
+  `timeSinceLastTick`, and `timeToDeadline`.
+- Compute observation deltas from the latest persisted local snapshot plus the
+  round deadline.
+- Update live round ticking to consume the observation layer instead of a bare
+  price point.
+- Map persisted `priceSnapshots` back into observation-shaped API state for the
+  `/round` page.
+
+### Affected Files
+
+- `/Users/irin/agent-duel/PLANS.md`
+- `/Users/irin/agent-duel/src/lib/server/market-data/types.ts`
+- `/Users/irin/agent-duel/src/lib/server/market-data/get-live-price.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/create-round.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/tick-live-round.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/map-round-state.ts`
+- `/Users/irin/agent-duel/src/lib/types/round.ts`
+
+### Implementation Order
+
+1. Add shared market observation types and metrics computation.
+2. Wrap the latest-price fetch in an observation builder.
+3. Switch live round create/tick paths to use the observation layer.
+4. Map persisted snapshots into observation-shaped round state.
+5. Run lint and build to confirm the new data shape is stable.
+
+### Risks / Edge Cases
+
+- The first snapshot in a round has no previous local baseline, so delta and
+  time-since-last-tick should remain `null`.
+- Some rounds may not have a deadline; `timeToDeadline` should stay `null`
+  instead of inventing a value.
+- External fetch failures should preserve the existing fallback behavior during
+  round creation.
+
 ## Immediate Plan: External Agent Webhook Entry
 
 ### Problem
@@ -1470,3 +2031,230 @@ and committed a decision.
   run.
 - Historical actions will have no trace; mappers and UI must handle empty
   arrays.
+
+## Event Pool Rotation Polish
+
+### Problem
+
+The landing Event Pool looked too small for the arena thesis because it exposed
+only three fixed mock events. The hackathon demo needs the product to feel like
+it is curating from a broader external event universe while still keeping the
+first screen focused on three readable battle objectives.
+
+### Constraints
+
+- Do not redesign the landing UI.
+- Keep Event Pool as the arena input layer, not the product center.
+- Keep the main stage limited to three visible events so the demo remains easy
+  to scan.
+- Avoid live external dependencies for the submission path.
+
+### Product Layer Impact
+
+- Event Pool: the landing surface now shows that the pool can contain more than
+  one fixed trio.
+- Round / Battle Layer: selected events still feed the existing round creation
+  flow unchanged.
+
+### Technical Architecture
+
+- Expand the landing mock Event Pool data.
+- Add lightweight category metadata for crypto, finance, sports, DeFi, macro,
+  and social events.
+- Keep page-level state for the visible event window.
+- Add compact refresh, category, and full-list controls to the Event Pool
+  header.
+- Let the full list select any event without changing the battle creation API.
+
+### Affected Files
+
+- `/Users/irin/agent-duel/src/lib/mocks/landing-demo-data.ts`
+- `/Users/irin/agent-duel/src/app/page.tsx`
+- `/Users/irin/agent-duel/src/components/landing/EventSelectionSection.tsx`
+- `/Users/irin/agent-duel/src/components/landing/EventCard.tsx`
+
+### Implementation Order
+
+1. Add more curated mock events.
+2. Add category metadata and a small filter row.
+3. Add a page-level three-event rotation window.
+4. Add refresh and total event list controls to the Event Pool header.
+5. Run lint/build and visually check the landing page.
+
+### Risks / Edge Cases
+
+- The full list should not make the page feel like a generic market dashboard.
+- Refresh should keep the selected battle event obvious.
+- Long event titles need to stay legible inside ticket cards and list rows.
+
+## Live Unresolved Round And Fact-Based Settlement
+
+### Problem
+
+The current arena loop proves identity movement, but it still feels too staged.
+Agents currently produce one decision at round creation time, then the round
+waits for a deterministic demo resolver. That means viewers do not get to watch
+a real battle unfold around an unresolved event, and settlement does not yet
+feel anchored to external fact.
+
+The next local milestone is not "more pages."
+It is a more credible arena loop:
+
+- choose an unresolved event
+- let agents keep acting while the event is still live
+- show the battle process as curves and action markers
+- settle from a real fact source instead of `resolveDemoMarket()`
+
+This is the shortest path from "cool demo" to "this feels like a real arena."
+
+### Constraints
+
+- Keep AgentDuel centered on public agent identity, not on becoming a trading
+  terminal.
+- Start with one narrow event class that is easy to settle objectively.
+- Preserve the current leaderboard, profile, reputation, and proof layers.
+- Avoid introducing a fully generic scheduler or exchange simulator in v1.5.
+- Prefer a local-dev-friendly flow that can be run and verified end to end.
+- Keep Event Pool as the input layer; do not let external feeds become the
+  headline experience.
+
+### Product Layer Impact
+
+- Event Pool Layer: events must now support a truly unresolved playable state,
+  not just demo-stage selection.
+- Round / Battle Layer: a round becomes an ongoing public contest instead of a
+  one-shot decision snapshot.
+- Resolution / Settlement Layer: winner selection must come from external fact,
+  not deterministic demo output.
+- Leaderboard / Profile / Reputation Layer: public status change becomes more
+  credible because it follows a visible live battle.
+
+### Technical Architecture
+
+- Introduce a first-class "live unresolved round" path for a narrow event type,
+  starting with short-horizon price-threshold events such as:
+  `Will SOL be above the start price in 10 minutes?`
+- Replace direct `resolveDemoMarket()` usage in settlement with a resolver
+  interface:
+  - input: round + event metadata
+  - output: outcome, end price, settlement source, settledAt
+- Implement one real resolver adapter backed by an external price source.
+- Add a round tick/update path so agents can emit multiple public actions during
+  a live round instead of exactly one action at creation.
+- Persist battle process data needed for visualization:
+  - price snapshots over time
+  - repeated agent actions
+  - optional derived exposure / unrealized PnL snapshots if needed
+- Extend battle queries and mappers so unresolved rounds can return both the
+  current battle state and the process history needed to render curves.
+- Update the round and battle UI to render:
+  - current unresolved status
+  - price line
+  - agent action markers
+  - at least one agent-vs-agent process curve
+- Keep settlement transaction ownership in the backend, so the final round,
+  reputation update, and proof payload remain consistent.
+
+### Minimum Viable Implementation
+
+The minimum version for this push is intentionally narrow.
+
+It should support:
+
+- one supported event family: short-duration price events
+- one live round at a time in local development
+- two agents updating their decisions on a fixed interval
+- persisted process history, so refresh does not erase the battle
+- manual or time-triggered settlement using a real fact resolver
+- post-settlement leaderboard / profile / proof updates using the existing
+  identity pipeline
+
+It should explicitly not require:
+
+- a full generic market engine
+- many event categories
+- autonomous execution on real venues
+- a broad scheduling framework
+- polished multi-round concurrency
+
+### Affected Files
+
+- `/Users/irin/agent-duel/PLANS.md`
+- `/Users/irin/agent-duel/prisma/schema.prisma`
+- `/Users/irin/agent-duel/prisma/init.sql`
+- `/Users/irin/agent-duel/src/lib/server/events/types.ts`
+- `/Users/irin/agent-duel/src/lib/server/events/select-round-event.ts`
+- `/Users/irin/agent-duel/src/lib/server/events/get-event-pool.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/create-round.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/get-latest-round.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/map-round-state.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/settle-round.ts`
+- `/Users/irin/agent-duel/src/lib/server/agent-runtime/types.ts`
+- `/Users/irin/agent-duel/src/lib/server/agent-runtime/run-round-agent-runtime.ts`
+- `/Users/irin/agent-duel/src/lib/server/battles/get-battle-record.ts`
+- `/Users/irin/agent-duel/src/lib/server/battles/get-battle-history.ts`
+- `/Users/irin/agent-duel/src/lib/server/battles/types.ts`
+- `/Users/irin/agent-duel/src/app/api/round/route.ts`
+- `/Users/irin/agent-duel/src/app/api/settle/route.ts`
+- `/Users/irin/agent-duel/src/app/round/page.tsx`
+- `/Users/irin/agent-duel/src/app/battles/[roundId]/page.tsx`
+- `/Users/irin/agent-duel/src/components/round/BattleActionTimeline.tsx`
+- `/Users/irin/agent-duel/src/components/round/EventDuelStage.tsx`
+- `/Users/irin/agent-duel/src/components/round/SettlementPanel.tsx`
+
+### Likely New Files
+
+- `/Users/irin/agent-duel/src/lib/server/market-data/get-live-price.ts`
+- `/Users/irin/agent-duel/src/lib/server/market-data/types.ts`
+- `/Users/irin/agent-duel/src/lib/server/settlement/resolve-round-outcome.ts`
+- `/Users/irin/agent-duel/src/lib/server/settlement/resolvers/price-threshold.ts`
+- `/Users/irin/agent-duel/src/lib/server/rounds/tick-live-round.ts`
+- `/Users/irin/agent-duel/src/app/api/round/tick/route.ts`
+
+### Implementation Order
+
+1. Lock the first supported live event type to short-horizon price events.
+2. Add a real settlement resolver interface and wire `settle-round.ts` to it.
+3. Implement one external price adapter for local fact-based settlement.
+4. Add persistence for battle process history required by live charts.
+5. Add a round tick path that can run agent decision updates repeatedly during a
+   live unresolved round.
+6. Extend round and battle query layers to expose current process history.
+7. Render one unresolved live battle UI with curves and action markers.
+8. Run the full local flow:
+   - seed/select event
+   - create live round
+   - tick agents several times
+   - inspect curves
+   - settle from real fact source
+   - verify leaderboard / profile / proof updates
+
+### Local Acceptance Checklist
+
+The local flow is complete when we can demonstrate all of the following:
+
+- a round can be created from an unresolved playable event
+- the round remains visibly live before settlement
+- two agents emit more than one action during the round lifecycle
+- those actions are persisted and survive refresh
+- the UI shows battle process, not only final settlement
+- the UI shows at least one real changing curve tied to stored round history
+- settlement no longer depends on `resolveDemoMarket()`
+- the final outcome is sourced from an external fact adapter
+- post-settlement leaderboard and profile movement still work
+- battle proof generation still reflects the final settled state
+
+### Risks / Edge Cases
+
+- If we make the live battle UI look too much like a pro trading terminal, the
+  product can drift away from its arena identity.
+- If the first resolver supports too many event classes, settlement logic will
+  sprawl before the core loop is stable.
+- If process history is only computed in the client, refresh and battle detail
+  pages will feel fake.
+- If tick cadence is too aggressive, local development will become noisy and
+  brittle.
+- If repeated actions overwrite previous ones instead of appending, the public
+  battle history will lose credibility.
+- If live rounds and settlement read different price sources or timestamps, the
+  battle can feel inconsistent at the finish line.

@@ -25,8 +25,8 @@ export function RoundArenaHeader({
 }: RoundArenaHeaderProps) {
   return (
     <header
-      className="relative z-20 border-b-[6px] border-black px-4 py-4 text-white shadow-[0_10px_0_rgba(0,0,0,0.25)] md:px-8"
-      style={{ backgroundColor: "#050505" }}
+      className="relative z-20 border-b-[6px] border-black px-4 py-4 text-black shadow-[0_10px_0_rgba(0,0,0,0.18)] md:px-8"
+      style={{ backgroundColor: "#fcee09" }}
     >
       <div className="mx-auto grid max-w-[1800px] gap-4 lg:grid-cols-[320px_1fr_360px] lg:items-center">
         <div className="flex items-center gap-4">
@@ -36,10 +36,10 @@ export function RoundArenaHeader({
             </div>
           </div>
           <div>
-            <h1 className="font-black italic leading-none tracking-tight text-white text-3xl">
-              AGENT<span className="text-[#fcee09]">DUEL</span>
+            <h1 className="text-3xl font-black italic leading-none tracking-tight text-black">
+              AGENT<span className="text-[#ff1f2d]">DUEL</span>
             </h1>
-            <div className="mt-1 font-mono text-[8px] font-black uppercase tracking-[0.2em] text-[#00eaff]">
+            <div className="mt-1 font-mono text-[8px] font-black uppercase tracking-[0.2em] text-black/75">
               NODE {roundId.slice(0, 8)}
             </div>
           </div>
@@ -47,12 +47,12 @@ export function RoundArenaHeader({
 
         <div
           className="industrial-clip border-4 px-5 py-4 text-center shadow-[8px_8px_0_#000]"
-          style={{ backgroundColor: "#151515", borderColor: "#202326" }}
+          style={{ backgroundColor: "#d8c900", borderColor: "#050505" }}
         >
-          <div className="font-mono text-[9px] font-black uppercase tracking-[0.26em] text-[#fcee09]">
+          <div className="font-mono text-[9px] font-black uppercase tracking-[0.26em] text-black/70">
             Battle Round
           </div>
-          <h2 className="mt-1 line-clamp-2 font-black uppercase leading-none tracking-wide text-white text-xl md:text-2xl">
+          <h2 className="mt-1 line-clamp-2 text-xl font-black uppercase leading-none tracking-wide text-black md:text-2xl">
             {question}
           </h2>
         </div>

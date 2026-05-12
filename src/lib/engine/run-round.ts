@@ -7,6 +7,8 @@ export function getDemoRoundState(): RoundState {
     id: "round-demo-1",
     status: "live",
     bankrollPerAgent: 10,
+    startsAt: null,
+    endsAt: null,
     event: {
       id: "event-1",
       question: "Will BTC close above 100k by round end?",
@@ -40,6 +42,8 @@ export function getDemoRoundState(): RoundState {
         usdc: 9.4,
       },
     ],
+    priceSnapshots: [],
+    polymarketSnapshots: [],
     settlement: {
       winnerAgentId: "momentum",
       winnerName: "Momentum Agent",

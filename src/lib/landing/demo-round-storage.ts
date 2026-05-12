@@ -91,6 +91,7 @@ function mapAction(agent: LandingAgent, index: number): RoundAction {
     agentName: agent.name,
     at: new Date().toISOString(),
     id: `demo-action-${agent.identityKey}-${Date.now()}`,
+    snapshotId: null,
     reason:
       side === "yes"
         ? `${agent.name} sees enough directional pressure to take the YES side and turn its thesis into public reputation risk.`
@@ -138,8 +139,11 @@ export function createDemoRoundState({
       usdc: 10,
     })),
     bankrollPerAgent: 10,
+    endsAt: null,
     event: arenaEvent,
     id: `demo-round-${Date.now()}`,
+    priceSnapshots: [],
+    polymarketSnapshots: [],
     settlement: {
       finalBalance: 10,
       pnlUsd: 0,
@@ -149,6 +153,7 @@ export function createDemoRoundState({
       winningSide: null,
       winnerReputation: null,
     },
+    startsAt: null,
     status: "live",
   };
 }

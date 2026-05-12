@@ -30,7 +30,7 @@ function buildSystemPrompt(persona: LlmAgentPersona) {
     `You are ${persona.name}, a competitive arena agent in the AgentDuel system.`,
     `Style: ${persona.styleSummary}`,
     `Decision policy: ${persona.decisionPolicy}`,
-    `Always respond with strict json shaped as: {"side": "yes" | "no", "sizeUsd": number, "reason": string}.`,
+    `Always respond with strict JSON shaped as: {"side": "yes" | "no", "sizeUsd": number, "reason": string}.`,
     `sizeUsd must be between 0 and the bankroll provided. Keep reason concise (max 240 chars).`,
   ].join("\n");
 }
@@ -51,6 +51,7 @@ function buildUserPrompt(context: LlmDecisionContext) {
   lines.push(
     "",
     "Decide which side to take, how much to commit, and explain your reasoning in one sentence.",
+    "Return JSON only.",
   );
 
   return lines.join("\n");
@@ -77,6 +78,14 @@ function buildFallbackDecision(input: RunLlmAgentInput) {
   const sizeUsd = clampSize(isContrarian ? 3 : 4, input.context.bankrollUsd);
 
   return { side, sizeUsd } as const;
+}
+
+function formatLlmError(error: unknown) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message.trim();
+  }
+
+  return "Unknown upstream LLM error.";
 }
 
 export async function runLlmAgent(
@@ -137,6 +146,7 @@ export async function runLlmAgent(
       error,
     );
 
+    const errorMessage = formatLlmError(error);
     const fallback = buildFallbackDecision(input);
 
     return {
@@ -145,7 +155,7 @@ export async function runLlmAgent(
         provider: adapter.provider,
         status: "failed-fallback",
       },
-      reason: `LLM failed on ${adapter.model}; used ${input.persona.name} fallback policy and committed ${fallback.side.toUpperCase()}.`,
+      reason: `LLM failed on ${adapter.model}: ${errorMessage}. Used ${input.persona.name} fallback policy and committed ${fallback.side.toUpperCase()}.`,
       side: fallback.side,
       sizeUsd: fallback.sizeUsd,
       trace: [
@@ -155,7 +165,7 @@ export async function runLlmAgent(
           title: "Event Context Loaded",
         },
         {
-          detail: `${adapter.provider}/${adapter.model} failed before returning a usable decision.`,
+          detail: `${adapter.provider}/${adapter.model} failed before returning a usable decision. ${errorMessage}`,
           phase: "execution",
           title: "Brain Execution Failed",
         },
