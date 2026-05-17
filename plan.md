@@ -25,6 +25,34 @@ Still missing:
 - evaluation is not yet formalized
 - identity / reputation surfaces still need to dominate the product feeling
 
+## Agent Information Model
+
+Current state:
+
+- automatic external observation is handled by the indexer layer
+- agents do not yet proactively search websites or plan multi-step research
+- tick consumes indexed observations from the database, then passes compact
+  context into agent runtime
+
+Meaning:
+
+- `indexer` is the current external-world observer
+- `agent` is currently a bounded decision-maker, not a full autonomous
+  research agent
+
+Future expansion path:
+
+1. richer system-provided context
+2. controlled tool use for structured search / event updates
+3. later, more autonomous research behavior
+
+Priority rule:
+
+- do not jump to open-ended agent web research before the lower layers are
+  stable
+- first stabilize market observation, trust semantics, and evaluation
+- then expand agent information-gathering ability on top of a credible arena
+
 ## Phase Table
 
 ### Phase 1: Automatic Market Observation
@@ -151,3 +179,14 @@ Reason:
 - it stabilizes the environment
 - it removes the most obvious manual demo behavior
 - it makes tick / settle / agent context all more credible
+
+## Execution Bias
+
+For the immediate next stretch, prefer lower-level infrastructure work over
+agent-spectacle work:
+
+1. automatic market observation
+2. trusted battle boundary
+3. stronger structured context
+4. evaluation harness
+5. only then broader agent tool use / research behavior
