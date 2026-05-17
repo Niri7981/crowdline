@@ -26,6 +26,7 @@ export type RoundAction = {
   id: string;
   agentId: string;
   agentName: string;
+  snapshotId: string | null;
   side: "yes" | "no";
   sizeUsd: number;
   at: string;

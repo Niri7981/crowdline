@@ -6,9 +6,9 @@ import {
 } from "@/lib/server/battles/build-battle-proof-hash";
 import { buildBattleProofPayload } from "@/lib/server/battles/build-battle-proof-payload";
 import { applyBattleReputationUpdate } from "@/lib/server/reputation/apply-battle-reputation-update";
+import { resolveRoundOutcome } from "@/lib/server/settlement/resolve-round-outcome";
 
 import type { PersistedRoundRecord } from "./get-latest-round";
-import { resolveDemoMarket } from "./demo-market";
 
 export type SettleRoundInput = {
   roundId?: string;
@@ -38,6 +38,9 @@ const roundInclude = {
     orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
   },
   event: true,
+  priceSnapshots: {
+    orderBy: [{ capturedAt: "asc" as const }, { id: "asc" as const }],
+  },
   settlement: true,
 } satisfies Prisma.RoundInclude;
 
@@ -140,13 +143,9 @@ export async function settleRound(
       return targetRound;
     }
 
-    const settledAt = input.settledAt ?? new Date();
-    const marketResolution = resolveDemoMarket({
-      marketSymbol: targetRound.marketSymbol,
-      roundId: targetRound.id,
-      startPrice: targetRound.event.startPrice,
-    });
-    const settlement = computeSettlement(targetRound, marketResolution.outcome);
+    const resolvedOutcome = await resolveRoundOutcome(targetRound);
+    const settledAt = input.settledAt ?? resolvedOutcome.settledAt;
+    const settlement = computeSettlement(targetRound, resolvedOutcome.outcome);
     await tx.round.update({
       data: {
         status: "settled",
@@ -158,8 +157,9 @@ export async function settleRound(
 
     await tx.roundEvent.update({
       data: {
-        endPrice: marketResolution.endPrice,
-        outcome: marketResolution.outcome,
+        endPrice: resolvedOutcome.endPrice,
+        outcome: resolvedOutcome.outcome,
+        resolutionSource: resolvedOutcome.resolutionSource,
       },
       where: {
         id: targetRound.event.id,
@@ -182,7 +182,7 @@ export async function settleRound(
       await tx.settlement.update({
         data: {
           finalBalance: settlement.finalBalance,
-          outcome: marketResolution.outcome,
+          outcome: resolvedOutcome.outcome,
           pnlUsd: settlement.pnlUsd,
           settledAt,
           status: "settled",
@@ -198,7 +198,7 @@ export async function settleRound(
       await tx.settlement.create({
         data: {
           finalBalance: settlement.finalBalance,
-          outcome: marketResolution.outcome,
+          outcome: resolvedOutcome.outcome,
           pnlUsd: settlement.pnlUsd,
           roundId: targetRound.id,
           settledAt,

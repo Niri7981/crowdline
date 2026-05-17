@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useTransition } from "react";
+import React, { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { LandingHero } from "@/components/landing/LandingHero";
@@ -22,6 +22,37 @@ import type { RoundState } from "@/lib/types/round";
 
 type ApiError = {
   error?: string;
+};
+
+type EventPoolStatus = "candidate" | "ready" | "live" | "settled" | "archived";
+
+type EventPoolCategory = "crypto" | "macro" | "headline" | "sports" | "other";
+
+type EventPoolItem = {
+  id: string;
+  sourceKey: "polymarket";
+  externalEventId: string;
+  externalMarketId: string | null;
+  slug: string | null;
+  title: string;
+  question: string;
+  category: EventPoolCategory;
+  marketSymbol: string;
+  yesLabel: string;
+  noLabel: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  durationSeconds: number;
+  resolutionSource: string;
+  sourceLabel: string;
+  externalUrl: string | null;
+  currentPrice: number | null;
+  volumeUsd: number | null;
+  liquidityScore: number | null;
+  status: EventPoolStatus;
+  playable: boolean;
+  spectatorNote: string;
+  stageLabel: string;
 };
 
 type EventCategoryFilter = LandingEventCategory | "All";
@@ -54,12 +85,126 @@ async function createRound(input: { agentIds: string[]; eventId: string }) {
   return (await response.json()) as RoundState;
 }
 
-function getFilteredEvents(category: EventCategoryFilter) {
-  if (category === "All") {
-    return MOCK_EVENTS;
+async function readPlayableEvents() {
+  const response = await fetch("/api/events?limit=10", {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ApiError | null;
+
+    throw new Error(payload?.error ?? "Failed to load hot arena events.");
   }
 
-  return MOCK_EVENTS.filter((event) => event.category === category);
+  return (await response.json()) as EventPoolItem[];
+}
+
+async function syncHotEventPool() {
+  const response = await fetch("/api/events", {
+    body: JSON.stringify({
+      limit: 10,
+    }),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ApiError | null;
+
+    throw new Error(payload?.error ?? "Failed to sync hot Polymarket events.");
+  }
+}
+
+function mapEventCategory(category: EventPoolCategory): LandingEventCategory {
+  if (category === "crypto") {
+    return "Crypto";
+  }
+
+  if (category === "sports") {
+    return "Sports";
+  }
+
+  if (category === "macro" || category === "headline") {
+    return "Macro";
+  }
+
+  return "Social";
+}
+
+function formatDeadline(value: string | null) {
+  if (!value) {
+    return "Deadline TBD";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Deadline TBD";
+  }
+
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatConsensus(price: number | null) {
+  if (price == null) {
+    return "LIVE MARKET";
+  }
+
+  return `${Math.round(price * 100)}% YES`;
+}
+
+function inferDifficulty(price: number | null): LandingEvent["difficulty"] {
+  if (price == null) {
+    return "Medium";
+  }
+
+  const distance = Math.abs(price - 0.5);
+
+  if (distance <= 0.12) {
+    return "High";
+  }
+
+  if (distance <= 0.28) {
+    return "Medium";
+  }
+
+  return "Low";
+}
+
+function buildShortQuestion(event: EventPoolItem) {
+  const source = event.title || event.question;
+  const normalized = source.replace(/\s+/g, " ").trim().toUpperCase();
+
+  return normalized.length > 34 ? `${normalized.slice(0, 31)}...` : normalized;
+}
+
+function mapEventPoolItemToLandingEvent(event: EventPoolItem): LandingEvent {
+  return {
+    category: mapEventCategory(event.category),
+    consensus: formatConsensus(event.currentPrice),
+    deadline: formatDeadline(event.endsAt),
+    difficulty: inferDifficulty(event.currentPrice),
+    id: event.id,
+    question: event.question,
+    shortQuestion: buildShortQuestion(event),
+    source: event.resolutionSource || "Polymarket Hot Event Pool",
+    sourceShort: "Polymarket",
+    status: event.status === "live" ? "SETTLING" : "OPEN",
+  };
+}
+
+function getFilteredEvents(events: LandingEvent[], category: EventCategoryFilter) {
+  if (category === "All") {
+    return events;
+  }
+
+  return events.filter((event) => event.category === category);
 }
 
 function getVisibleEvents(events: LandingEvent[], startIndex: number) {
@@ -83,7 +228,9 @@ export default function HomePage() {
   } = useLandingAgents();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCreating, startCreateTransition] = useTransition();
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
 
+  const [arenaEvents, setArenaEvents] = useState<LandingEvent[]>(MOCK_EVENTS);
   const [selectedEventId, setSelectedEventId] = useState<string>(MOCK_EVENTS[0].id);
   const [eventWindowStart, setEventWindowStart] = useState(0);
   const [selectedEventCategory, setSelectedEventCategory] =
@@ -91,17 +238,61 @@ export default function HomePage() {
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
 
   const filteredEvents = useMemo(
-    () => getFilteredEvents(selectedEventCategory),
-    [selectedEventCategory],
+    () => getFilteredEvents(arenaEvents, selectedEventCategory),
+    [arenaEvents, selectedEventCategory],
   );
   const visibleEvents = useMemo(
     () => getVisibleEvents(filteredEvents, eventWindowStart),
     [eventWindowStart, filteredEvents],
   );
-  const selectedEvent = MOCK_EVENTS.find((event) => event.id === selectedEventId) || MOCK_EVENTS[0];
+  const selectedEvent =
+    arenaEvents.find((event) => event.id === selectedEventId) ||
+    filteredEvents[0] ||
+    arenaEvents[0] ||
+    MOCK_EVENTS[0];
   const selectedAgents = selectedAgentIds
     .map((agentId) => agents.find((agent) => agent.id === agentId))
     .filter((agent): agent is NonNullable<typeof agent> => Boolean(agent));
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        let nextEvents = await readPlayableEvents();
+
+        if (nextEvents.length === 0) {
+          await syncHotEventPool();
+          nextEvents = await readPlayableEvents();
+        }
+
+        if (cancelled || nextEvents.length === 0) {
+          return;
+        }
+
+        const mappedEvents = nextEvents.map(mapEventPoolItemToLandingEvent);
+
+        setArenaEvents(mappedEvents);
+        setSelectedEventId(mappedEvents[0].id);
+        setEventWindowStart(0);
+        setErrorMessage(null);
+      } catch (error) {
+        if (!cancelled) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Failed to load hot arena events.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingEvents(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function handleRefreshEvents() {
     const nextStart =
@@ -115,7 +306,7 @@ export default function HomePage() {
   }
 
   function handleSelectEventCategory(category: EventCategoryFilter) {
-    const nextEvents = getFilteredEvents(category);
+    const nextEvents = getFilteredEvents(arenaEvents, category);
 
     setSelectedEventCategory(category);
     setEventWindowStart(0);
@@ -123,7 +314,7 @@ export default function HomePage() {
   }
 
   function handleSelectEvent(eventId: string) {
-    const event = MOCK_EVENTS.find((candidate) => candidate.id === eventId);
+    const event = arenaEvents.find((candidate) => candidate.id === eventId);
 
     setSelectedEventId(eventId);
 
@@ -200,7 +391,8 @@ export default function HomePage() {
         <EventSelectionSection 
           activeCategory={selectedEventCategory}
           categoryOptions={EVENT_CATEGORY_FILTERS}
-          events={MOCK_EVENTS}
+          events={arenaEvents}
+          isLoading={isLoadingEvents}
           filteredEventCount={filteredEvents.length}
           selectedEventId={selectedEventId} 
           visibleEvents={visibleEvents}

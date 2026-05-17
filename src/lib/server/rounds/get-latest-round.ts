@@ -13,6 +13,7 @@ export type PersistedRoundRecord = Prisma.RoundGetPayload<{
     };
     agents: true;
     event: true;
+    priceSnapshots: true;
     settlement: true;
   };
 }>;
@@ -33,6 +34,9 @@ export async function getLatestRound(): Promise<PersistedRoundRecord | null> {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       },
       event: true,
+      priceSnapshots: {
+        orderBy: [{ capturedAt: "asc" }, { id: "asc" }],
+      },
       settlement: true,
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],

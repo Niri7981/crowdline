@@ -53,6 +53,27 @@ export type GetEventPoolInput = {
   status?: EventPoolStatus | EventPoolStatus[];
 };
 
+export type HotPolymarketEvent = {
+  id: string;
+  sourceKey: "polymarket";
+  externalEventId: string;
+  externalMarketId: string | null;
+  slug: string | null;
+  title: string;
+  question: string;
+  category: EventPoolCategory;
+  yesLabel: string;
+  noLabel: string;
+  endsAt: string | null;
+  externalUrl: string | null;
+  yesPrice: number | null;
+  noPrice: number | null;
+  volumeUsd: number | null;
+  liquidityScore: number | null;
+  spectatorNote: string;
+  stageLabel: string;
+};
+
 export type SeedEventPoolResult = {
   inserted: number;
   invalid: number;

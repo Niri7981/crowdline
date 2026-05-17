@@ -46,6 +46,9 @@ const arenaRoundInclude = {
     orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
   },
   event: true,
+  priceSnapshots: {
+    orderBy: [{ capturedAt: "asc" as const }, { id: "asc" as const }],
+  },
   settlement: true,
 } satisfies Prisma.RoundInclude;
 

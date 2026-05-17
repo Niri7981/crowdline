@@ -1,21 +1,31 @@
 export type DemoMarketInput = {
   durationSeconds?: number;
+  externalMarketId?: string | null;
   marketSymbol?: string;
+  observationType?: "fact-price" | "polymarket-price";
+  question?: string;
+  resolutionSource?: string;
+  slug?: string | null;
+  startPrice?: number | null;
   startsAt?: Date;
 };
 
 export type DemoMarketSnapshot = {
   currentPrice: number;
   endsAt: Date;
+  externalMarketId: string | null;
   marketSymbol: string;
+  observationType: "fact-price" | "polymarket-price";
   question: string;
   resolutionSource: string;
+  slug: string | null;
   startPrice: number;
   startsAt: Date;
 };
 
 export type DemoMarketResolutionInput = {
   marketSymbol: string;
+  observationType?: "fact-price" | "polymarket-price";
   roundId: string;
   startPrice: number;
 };
@@ -73,15 +83,24 @@ export function buildDemoMarket(input: DemoMarketInput = {}): DemoMarketSnapshot
   const marketSymbol = input.marketSymbol ?? DEFAULT_MARKET_SYMBOL;
   const startsAt = input.startsAt ?? new Date();
   const endsAt = new Date(startsAt.getTime() + durationSeconds * 1000);
-  const currentPrice = DEMO_PRICES[marketSymbol] ?? 1;
+  const currentPrice = input.startPrice ?? DEMO_PRICES[marketSymbol] ?? 1;
   const durationLabel = formatDurationLabel(durationSeconds);
+  const observationType = input.observationType ?? "fact-price";
+  const question =
+    input.question ??
+    (observationType === "polymarket-price"
+      ? `Will this market's YES price be higher in ${durationLabel}?`
+      : `Will ${marketSymbol} be above the current price in ${durationLabel}?`);
 
   return {
     currentPrice,
     endsAt,
+    externalMarketId: input.externalMarketId ?? null,
     marketSymbol,
-    question: `Will ${marketSymbol} be above the current price in ${durationLabel}?`,
-    resolutionSource: "Demo market oracle",
+    observationType,
+    question,
+    resolutionSource: input.resolutionSource ?? "Demo market oracle",
+    slug: input.slug ?? null,
     startPrice: currentPrice,
     startsAt,
   };

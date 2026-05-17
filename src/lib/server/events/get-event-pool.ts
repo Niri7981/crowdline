@@ -15,7 +15,7 @@ type EventPoolRecord = NonNullable<
 
 // 读取层和 normalize 层保持一致，避免 seed 进来的事件又被页面读层刷掉。
 const MIN_EVENT_LEAD_MINUTES = 5;
-const MAX_EVENT_HORIZON_DAYS = 120;
+const MAX_EVENT_HORIZON_DAYS = 365;
 
 function mapRecordToInternalEvent(record: EventPoolRecord): InternalEventPoolItem {
   return {

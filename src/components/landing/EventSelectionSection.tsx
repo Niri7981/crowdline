@@ -13,6 +13,7 @@ interface EventSelectionSectionProps {
   categoryOptions: EventCategoryFilter[];
   events: LandingEvent[];
   filteredEventCount: number;
+  isLoading?: boolean;
   selectedEventId: string | null;
   visibleEvents: LandingEvent[];
   onRefreshEvents: () => void;
@@ -25,6 +26,7 @@ export function EventSelectionSection({
   categoryOptions,
   events,
   filteredEventCount,
+  isLoading = false,
   selectedEventId,
   visibleEvents,
   onRefreshEvents,
@@ -105,7 +107,7 @@ export function EventSelectionSection({
                 style={{ fontFamily: "monospace", letterSpacing: "0.22em", textTransform: "uppercase" }}
               >
                 <ShieldCheck className="h-4 w-4" />
-                {events.length} EVENTS ONLINE
+                {isLoading ? "SYNCING HOT EVENTS" : `${events.length} EVENTS ONLINE`}
               </div>
               <div
                 className="text-right text-[9px] font-black uppercase text-white/45"

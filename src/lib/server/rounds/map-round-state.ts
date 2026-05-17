@@ -6,6 +6,7 @@ import type { RoundSettlement } from "@/lib/types/settlement";
 
 import type { PersistedRoundRecord } from "./get-latest-round";
 import { prisma } from "@/lib/db/prisma";
+import { buildMarketObservation } from "@/lib/server/market-data/get-live-price";
 import { getAgentPoolEntryByIdentityKey } from "@/lib/server/agents/get-agent-pool";
 
 // 把某个 action 的创建时间，换算成“距离 round 开始已经过了多久”。
@@ -27,13 +28,20 @@ function formatElapsedTime(createdAt: Date, startsAt: Date | null) {
 // 从数据库 round 里，提取出页面要显示的 event。
 function mapEvent(round: PersistedRoundRecord): ArenaEvent {
   return {
+    externalMarketId: round.event?.externalMarketId ?? null,
     id: round.event?.id ?? `event-${round.id}`,
+    observationType:
+      round.event?.observationType === "polymarket-price"
+        ? "polymarket-price"
+        : "fact-price",
     outcome:
       round.event?.outcome === "yes" || round.event?.outcome === "no"
         ? round.event.outcome
         : "pending",
     question: round.event?.question ?? "Pending duel event",
     resolutionSource: round.event?.resolutionSource ?? "Pending source",
+    slug: round.event?.slug ?? null,
+    sourceKey: round.event?.sourceKey ?? null,
   };
 }
 
@@ -149,6 +157,7 @@ function mapActions(round: PersistedRoundRecord): RoundAction[] {
     at: formatElapsedTime(action.createdAt, round.startsAt),
     id: action.id,
     reason: action.reason,
+    snapshotId: action.snapshotId,
     runtime: {
       brainModel: action.brainModel,
       brainProvider: mapRuntimeProvider(action.brainProvider),
@@ -175,6 +184,72 @@ function mapBalances(round: PersistedRoundRecord): BankrollBalance[] {
     agentName: agent.name,
     usdc: agent.finalBalance ?? agent.startingBalance,
   }));
+}
+
+function mapPriceSnapshots(round: PersistedRoundRecord): RoundState["priceSnapshots"] {
+  return round.priceSnapshots.map((snapshot, index, snapshots) => {
+    const previousSnapshot = index === 0 ? null : snapshots[index - 1];
+    const observation = buildMarketObservation(
+      {
+        price: snapshot.price,
+        sourceLabel: snapshot.sourceLabel,
+        timestamp: snapshot.capturedAt,
+      },
+      {
+        previousPoint:
+          previousSnapshot == null
+            ? null
+            : {
+                price: previousSnapshot.price,
+                timestamp: previousSnapshot.capturedAt,
+              },
+        roundEndsAt: round.endsAt,
+      },
+    );
+
+    return {
+      capturedAt: observation.timestamp.toISOString(),
+      delta: observation.delta,
+      id: snapshot.id,
+      pctChange: observation.pctChange,
+      price: observation.price,
+      sourceLabel: observation.sourceLabel,
+      timeSinceLastTick: observation.timeSinceLastTick,
+      timeToDeadline: observation.timeToDeadline,
+    };
+  });
+}
+
+// 这里在干嘛：
+// 读取最近一小段 Polymarket YES/NO 市场价格，映射成 round 页可画的市场共识点。
+// 为什么这么写：
+// Polymarket 是外部市场共识输入，不等于 SOL 事实价格；
+// 先在 API state 里单独暴露，前端可以显式切换查看，不污染 settlement fact 曲线。
+// 最后返回什么：
+// 返回按时间升序排列的 Polymarket market ticks。
+async function mapPolymarketSnapshots(): Promise<RoundState["polymarketSnapshots"]> {
+  const ticks = await prisma.marketTick.findMany({
+    orderBy: [{ observedAt: "desc" }, { id: "desc" }],
+    take: 80,
+    where: {
+      sourceKey: "polymarket",
+      side: {
+        in: ["yes", "no"],
+      },
+    },
+  });
+
+  return ticks
+    .reverse()
+    .map((tick) => ({
+      conditionId: tick.conditionId,
+      id: tick.id,
+      marketId: tick.marketId,
+      observedAt: tick.observedAt.toISOString(),
+      price: tick.price,
+      side: tick.side === "no" ? "no" : "yes",
+      sourceLabel: tick.sourceLabel,
+    }));
 }
 
 async function mapSettlement(round: PersistedRoundRecord): Promise<RoundSettlement> {
@@ -224,15 +299,20 @@ async function mapSettlement(round: PersistedRoundRecord): Promise<RoundSettleme
 // 这样前端不用知道 Prisma 表长什么样，后面改表也不会一路牵连到 UI。
 export async function mapRoundToState(round: PersistedRoundRecord): Promise<RoundState> {
   const brainsByIdentity = await loadBrainsForRound(round);
+  const polymarketSnapshots = await mapPolymarketSnapshots();
 
   return {
     actions: mapActions(round),
     agents: mapAgents(round, brainsByIdentity),
     balances: mapBalances(round),
     bankrollPerAgent: round.bankrollPerAgent,
+    endsAt: round.endsAt ? round.endsAt.toISOString() : null,
     event: mapEvent(round),
     id: round.id,
+    priceSnapshots: mapPriceSnapshots(round),
+    polymarketSnapshots,
     settlement: await mapSettlement(round),
+    startsAt: round.startsAt ? round.startsAt.toISOString() : null,
     status: round.status === "settled" ? "settled" : "live",
   };
 }

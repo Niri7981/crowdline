@@ -66,7 +66,7 @@ export function AgentBattleCard({
 
   return (
     <article
-      className="industrial-clip relative mx-auto h-full w-full min-w-0 max-w-[380px] overflow-hidden border-[3px] bg-[#050505] text-white transition duration-300 md:border-[5px]"
+      className="industrial-clip relative mx-auto h-full w-full min-w-0 max-w-[380px] overflow-hidden border-[3px] bg-[#fcee09] text-black transition duration-300 md:border-[5px]"
       style={{
         borderColor: themeColor,
       }}
@@ -74,14 +74,14 @@ export function AgentBattleCard({
       <div className="absolute inset-x-0 top-0 h-3" style={{ backgroundColor: themeColor }} />
 
       <div className="relative z-10 flex h-full flex-col">
-        <div className="flex items-start justify-between gap-1 border-b-[3px] border-black bg-[#111111] p-1.5 md:gap-2 md:border-b-[4px] md:p-5">
+        <div className="flex items-start justify-between gap-1 border-b-[3px] border-black bg-[#d8c900] p-1.5 md:gap-2 md:border-b-[4px] md:p-5">
           <div className="min-w-0">
             <div className="truncate font-mono text-[6px] font-black uppercase tracking-[0.08em] md:text-[9px] md:tracking-[0.28em]" style={{ color: themeColor }}>
               {side === "left" ? "Left Contender" : "Right Contender"}
             </div>
             <h3
               className="mt-1 truncate font-black uppercase leading-none tracking-tight text-[clamp(13px,2.4vw,38px)]"
-              style={{ fontStyle: "italic", transform: "skewX(-8deg)" }}
+              style={{ color: "#050505", fontStyle: "italic", transform: "skewX(-8deg)" }}
             >
               {agent.name}
             </h3>
@@ -154,12 +154,12 @@ export function AgentBattleCard({
           </div>
         ) : null}
 
-        <div className="mt-auto flex items-center justify-between gap-1 border-t-[3px] border-black bg-[#111111] px-1.5 py-2 md:gap-2 md:border-t-[4px] md:px-5 md:py-4">
+        <div className="mt-auto flex items-center justify-between gap-1 border-t-[3px] border-black bg-[#d8c900] px-1.5 py-2 md:gap-2 md:border-t-[4px] md:px-5 md:py-4">
           <div className="flex items-center gap-1 font-mono text-[7px] font-black uppercase tracking-[0.14em] md:gap-2 md:text-[9px] md:tracking-[0.2em]" style={{ color: themeColor }}>
             <Swords className="h-3 w-3 md:h-4 md:w-4" />
             {isWinner ? "Identity Earned" : isDefeated ? "Defeated" : <><span className="hidden sm:inline">Identity</span> Ready</>}
           </div>
-          <div className="text-[9px] font-black italic uppercase text-white md:text-base">
+          <div className="text-[9px] font-black italic uppercase text-black md:text-base">
             {action ? `${action.sizeUsd.toFixed(2)} USDC` : "Pending"}
           </div>
         </div>

@@ -86,6 +86,10 @@ CREATE TABLE IF NOT EXISTS RoundEvent (
   roundId TEXT NOT NULL UNIQUE,
   question TEXT NOT NULL,
   resolutionSource TEXT NOT NULL,
+  observationType TEXT DEFAULT 'fact-price',
+  sourceKey TEXT,
+  externalMarketId TEXT,
+  slug TEXT,
   startPrice REAL NOT NULL,
   endPrice REAL,
   outcome TEXT NOT NULL,
@@ -114,10 +118,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS RoundAgent_roundId_agentKey_key
 CREATE INDEX IF NOT EXISTS RoundAgent_roundId_idx
   ON RoundAgent(roundId);
 
+CREATE TABLE IF NOT EXISTS RoundPriceSnapshot (
+  id TEXT PRIMARY KEY NOT NULL,
+  roundId TEXT NOT NULL,
+  price REAL NOT NULL,
+  sourceLabel TEXT NOT NULL,
+  capturedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (roundId) REFERENCES Round(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS RoundPriceSnapshot_roundId_capturedAt_idx
+  ON RoundPriceSnapshot(roundId, capturedAt);
+
 CREATE TABLE IF NOT EXISTS Action (
   id TEXT PRIMARY KEY NOT NULL,
   roundId TEXT NOT NULL,
   roundAgentId TEXT NOT NULL,
+  snapshotId TEXT,
   side TEXT NOT NULL,
   sizeUsd REAL NOT NULL,
   reason TEXT NOT NULL,
@@ -129,7 +147,8 @@ CREATE TABLE IF NOT EXISTS Action (
   executionStatus TEXT,
   createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (roundId) REFERENCES Round(id) ON DELETE CASCADE,
-  FOREIGN KEY (roundAgentId) REFERENCES RoundAgent(id) ON DELETE CASCADE
+  FOREIGN KEY (roundAgentId) REFERENCES RoundAgent(id) ON DELETE CASCADE,
+  FOREIGN KEY (snapshotId) REFERENCES RoundPriceSnapshot(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS Action_roundId_idx
@@ -201,3 +220,45 @@ CREATE TABLE IF NOT EXISTS BattleProofRecord (
   updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (roundId) REFERENCES Round(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS FactPriceTick (
+  id TEXT PRIMARY KEY NOT NULL,
+  symbol TEXT NOT NULL,
+  price REAL NOT NULL,
+  sourceLabel TEXT NOT NULL,
+  observedAt DATETIME NOT NULL,
+  rawPayloadHash TEXT,
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS FactPriceTick_symbol_sourceLabel_observedAt_key
+  ON FactPriceTick(symbol, sourceLabel, observedAt);
+
+CREATE INDEX IF NOT EXISTS FactPriceTick_symbol_observedAt_idx
+  ON FactPriceTick(symbol, observedAt);
+
+CREATE TABLE IF NOT EXISTS MarketTick (
+  id TEXT PRIMARY KEY NOT NULL,
+  sourceKey TEXT NOT NULL,
+  marketId TEXT NOT NULL,
+  conditionId TEXT,
+  tokenId TEXT NOT NULL,
+  side TEXT NOT NULL,
+  price REAL NOT NULL,
+  sourceLabel TEXT NOT NULL,
+  observedAt DATETIME NOT NULL,
+  rawPayloadHash TEXT,
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS MarketTick_sourceKey_tokenId_observedAt_key
+  ON MarketTick(sourceKey, tokenId, observedAt);
+
+CREATE INDEX IF NOT EXISTS MarketTick_sourceKey_marketId_observedAt_idx
+  ON MarketTick(sourceKey, marketId, observedAt);
+
+CREATE INDEX IF NOT EXISTS MarketTick_tokenId_observedAt_idx
+  ON MarketTick(tokenId, observedAt);
+
+CREATE INDEX IF NOT EXISTS MarketTick_conditionId_idx
+  ON MarketTick(conditionId);
