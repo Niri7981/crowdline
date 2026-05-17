@@ -13,6 +13,7 @@ const DEFAULT_SYMBOLS = ["SOL", "BTC", "ETH"];
 const MARKET_DATA_TIMEOUT_MS = 12_000;
 const POLYMARKET_CLOB_BASE_URL = "https://clob.polymarket.com";
 const POLYMARKET_GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
+const POLYMARKET_SOURCE_KEY = "polymarket";
 
 const COINBASE_PRODUCT_IDS = {
   BTC: "BTC-USD",
@@ -136,6 +137,15 @@ function parsePolymarketConfig(args) {
     slug,
     yesTokenId,
   };
+}
+
+function shouldAutoWatchLiveRounds(args) {
+  const rawValue =
+    args["watch-live-rounds"] ??
+    process.env.AGENTDUEL_INDEXER_WATCH_LIVE_ROUNDS ??
+    "true";
+
+  return rawValue !== "false";
 }
 
 async function fetchJsonWithCurl(input, proxyUrl) {
@@ -416,9 +426,44 @@ async function resolvePolymarketBySlug(slug, proxyUrl) {
   };
 }
 
+async function resolvePolymarketByMarketId(marketId, proxyUrl) {
+  const market = await fetchJsonWithTimeout(
+    `${POLYMARKET_GAMMA_BASE_URL}/markets/${encodeURIComponent(marketId)}`,
+    proxyUrl,
+  );
+
+  if (!market) {
+    throw new Error(`No Polymarket market found for id: ${marketId}.`);
+  }
+
+  const yesTokenId = pickTokenIdFromMarket(market, "yes");
+  const noTokenId = pickTokenIdFromMarket(market, "no");
+
+  if (!yesTokenId || !noTokenId) {
+    throw new Error(`Polymarket market ${marketId} does not expose yes/no token ids.`);
+  }
+
+  return {
+    conditionId: market.conditionId ?? null,
+    fallbackPrices: {
+      no: pickOutcomePriceFromMarket(market, "no"),
+      yes: pickOutcomePriceFromMarket(market, "yes"),
+    },
+    marketId: String(market.id ?? marketId),
+    noTokenId,
+    slug: market.slug ?? null,
+    title: market.question ?? market.title ?? marketId,
+    yesTokenId,
+  };
+}
+
 async function resolvePolymarketConfig(config, proxyUrl) {
   if (config.slug) {
     return resolvePolymarketBySlug(config.slug, proxyUrl);
+  }
+
+  if (config.marketId && (!config.yesTokenId || !config.noTokenId)) {
+    return resolvePolymarketByMarketId(config.marketId, proxyUrl);
   }
 
   return {
@@ -515,6 +560,94 @@ async function indexPolymarketMarket(market, writeMarket, proxyUrl) {
   }
 }
 
+function createLiveRoundWatchReader(db) {
+  return db.prepare(`
+    SELECT
+      re.externalMarketId AS externalMarketId,
+      re.slug AS slug,
+      re.question AS question
+    FROM Round r
+    INNER JOIN RoundEvent re ON re.roundId = r.id
+    WHERE r.status = 'live'
+      AND re.observationType = 'polymarket-price'
+      AND re.sourceKey = @sourceKey
+      AND re.externalMarketId IS NOT NULL
+    ORDER BY r.createdAt DESC, r.id DESC
+  `);
+}
+
+function readLiveRoundWatchlist(readWatchlist) {
+  const rows = readWatchlist.all({
+    sourceKey: POLYMARKET_SOURCE_KEY,
+  });
+  const watchlist = new Map();
+
+  for (const row of rows) {
+    const externalMarketId =
+      typeof row.externalMarketId === "string" && row.externalMarketId.trim().length > 0
+        ? row.externalMarketId.trim()
+        : null;
+
+    if (!externalMarketId || watchlist.has(externalMarketId)) {
+      continue;
+    }
+
+    watchlist.set(externalMarketId, {
+      marketId: externalMarketId,
+      question:
+        typeof row.question === "string" && row.question.trim().length > 0
+          ? row.question.trim()
+          : externalMarketId,
+      slug:
+        typeof row.slug === "string" && row.slug.trim().length > 0
+          ? row.slug.trim()
+          : null,
+    });
+  }
+
+  return [...watchlist.values()];
+}
+
+async function loadLiveRoundMarkets(params) {
+  const {
+    proxyUrl,
+    readWatchlist,
+    resolvedMarketCache,
+  } = params;
+  const liveWatchlist = readLiveRoundWatchlist(readWatchlist);
+  const markets = [];
+
+  for (const entry of liveWatchlist) {
+    const cacheKey = entry.marketId;
+    const cached = resolvedMarketCache.get(cacheKey);
+
+    if (cached) {
+      markets.push(cached);
+      continue;
+    }
+
+    try {
+      const resolvedMarket = entry.slug
+        ? await resolvePolymarketBySlug(entry.slug, proxyUrl)
+        : await resolvePolymarketByMarketId(entry.marketId, proxyUrl);
+      const mergedMarket = {
+        ...resolvedMarket,
+        title: resolvedMarket.title ?? entry.question,
+      };
+
+      resolvedMarketCache.set(cacheKey, mergedMarket);
+      markets.push(mergedMarket);
+    } catch (error) {
+      console.error(
+        `Failed to resolve live Polymarket watch target ${entry.marketId}.`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+
+  return markets;
+}
+
 async function run() {
   const args = parseArgs(process.argv.slice(2));
   const intervalMs = Number(
@@ -527,6 +660,7 @@ async function run() {
       : null;
   const symbols = parseSymbols(args.symbols ?? process.env.AGENTDUEL_INDEXER_SYMBOLS);
   const polymarketConfig = parsePolymarketConfig(args);
+  const watchLiveRounds = shouldAutoWatchLiveRounds(args);
   const proxyUrl = readProxyUrl(args);
 
   if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
@@ -536,11 +670,20 @@ async function run() {
   const db = new Database(resolveDatabasePath());
   const writeFact = createFactWriter(db);
   const writeMarket = createMarketWriter(db);
-  let polymarketMarket = null;
+  const readLiveRoundWatchlistStatement = createLiveRoundWatchReader(db);
+  const resolvedMarketCache = new Map();
+  let manuallyConfiguredPolymarketMarket = null;
 
   if (polymarketConfig) {
     try {
-      polymarketMarket = await resolvePolymarketConfig(polymarketConfig, proxyUrl);
+      manuallyConfiguredPolymarketMarket = await resolvePolymarketConfig(
+        polymarketConfig,
+        proxyUrl,
+      );
+      resolvedMarketCache.set(
+        manuallyConfiguredPolymarketMarket.marketId,
+        manuallyConfiguredPolymarketMarket,
+      );
     } catch (error) {
       console.error(
         "Polymarket config could not be resolved; continuing with fact indexing only.",
@@ -554,9 +697,10 @@ async function run() {
     [
       "Market indexer started",
       `symbols=${symbols.join(",")}`,
-      polymarketMarket
-        ? `polymarket=${polymarketMarket.title} (${polymarketMarket.marketId})`
-        : "polymarket=disabled",
+      manuallyConfiguredPolymarketMarket
+        ? `manual-polymarket=${manuallyConfiguredPolymarketMarket.title} (${manuallyConfiguredPolymarketMarket.marketId})`
+        : "manual-polymarket=disabled",
+      watchLiveRounds ? "live-round-watch=enabled" : "live-round-watch=disabled",
       `interval=${intervalMs}ms`,
       proxyUrl ? `proxy=${proxyUrl}` : "proxy=none",
     ].join(" / "),
@@ -577,12 +721,27 @@ async function run() {
         }
       }
 
-      if (polymarketMarket) {
+      const liveRoundMarkets = watchLiveRounds
+        ? await loadLiveRoundMarkets({
+            proxyUrl,
+            readWatchlist: readLiveRoundWatchlistStatement,
+            resolvedMarketCache,
+          })
+        : [];
+      const polymarketMarkets = [
+        ...(manuallyConfiguredPolymarketMarket ? [manuallyConfiguredPolymarketMarket] : []),
+        ...liveRoundMarkets,
+      ];
+      const uniquePolymarketMarkets = new Map(
+        polymarketMarkets.map((market) => [market.marketId, market]),
+      );
+
+      for (const polymarketMarket of uniquePolymarketMarkets.values()) {
         try {
           await indexPolymarketMarket(polymarketMarket, writeMarket, proxyUrl);
         } catch (error) {
           console.error(
-            "Failed to index Polymarket market.",
+            `Failed to index Polymarket market ${polymarketMarket.marketId}.`,
             error instanceof Error ? error.message : error,
           );
         }
