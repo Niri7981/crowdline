@@ -102,6 +102,7 @@ function mapAction(agent: LandingAgent, index: number): RoundAction {
       executionModel: agent.brain.model,
       executionProvider: agent.brain.provider,
       executionStatus: "completed",
+      trustStatus: "trusted",
       runtimeKey: agent.runtimeKey,
     },
     side,
@@ -148,6 +149,8 @@ export function createDemoRoundState({
       finalBalance: 10,
       pnlUsd: 0,
       status: "pending",
+      trustStatus: "trusted",
+      trustSummary: null,
       winnerAgentId: "",
       winnerName: "Pending settlement",
       winningSide: null,
@@ -155,6 +158,7 @@ export function createDemoRoundState({
     },
     startsAt: null,
     status: "live",
+    trustStatus: "trusted",
   };
 }
 
@@ -191,6 +195,8 @@ export function settleDemoRoundState(round: RoundState): RoundState {
       finalBalance,
       pnlUsd: finalBalance - round.bankrollPerAgent,
       status: "settled",
+      trustStatus: "trusted",
+      trustSummary: null,
       winnerAgentId: winnerAgent.id,
       winnerName: winnerAgent.name,
       winnerReputation: {

@@ -49,6 +49,12 @@ function getFallbackExecution(
   };
 }
 
+function getExecutionTrustStatus(
+  execution: NonNullable<AgentRuntimeRawDecision["execution"]>,
+) {
+  return execution.status === "failed-fallback" ? "degraded" : "trusted";
+}
+
 // 这里在干嘛：
 // 把 adapter 返回的公开 runtime trace 收敛成稳定数组；旧 adapter 没有 trace 时补一份最小过程。
 // 为什么这么写：
@@ -133,6 +139,7 @@ export async function runRoundAgentRuntime(
           execution,
           sizeUsd,
         }),
+        trustStatus: getExecutionTrustStatus(execution),
       };
     }),
   );

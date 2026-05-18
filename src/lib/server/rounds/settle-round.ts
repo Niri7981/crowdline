@@ -19,10 +19,20 @@ type SettlementComputation = {
   finalBalances: Map<string, number>;
   finalBalance: number;
   pnlUsd: number;
+  trustStatus: "degraded" | "trusted";
+  trustSummary: string | null;
   winnerAgentKey: string | null;
   winnerName: string;
   winningSide: "yes" | "no" | null;
 };
+
+export type RoundTrustStatus = SettlementComputation["trustStatus"];
+
+function hasDegradedBattleEvidence(round: PersistedRoundRecord) {
+  return round.actions.some(
+    (action) => action.executionStatus === "failed-fallback",
+  );
+}
 
 const roundInclude = {
   actions: {
@@ -80,6 +90,10 @@ function computeSettlement(
       finalBalance: round.bankrollPerAgent,
       finalBalances,
       pnlUsd: 0,
+      trustStatus: hasDegradedBattleEvidence(round) ? "degraded" : "trusted",
+      trustSummary: hasDegradedBattleEvidence(round)
+        ? "One or more agents fell back after an upstream LLM failure, so this round does not count as trusted battle proof."
+        : null,
       winnerAgentKey: null,
       winnerName: "Draw",
       winningSide: null,
@@ -99,6 +113,10 @@ function computeSettlement(
     finalBalance: winnerBalance,
     finalBalances,
     pnlUsd: winnerBalance - winner.roundAgent.startingBalance,
+    trustStatus: hasDegradedBattleEvidence(round) ? "degraded" : "trusted",
+    trustSummary: hasDegradedBattleEvidence(round)
+      ? "One or more agents fell back after an upstream LLM failure, so this round does not count as trusted battle proof."
+      : null,
     winnerAgentKey: winner.roundAgent.agentKey,
     winnerName: winner.roundAgent.name,
     winningSide: outcome,
@@ -146,6 +164,7 @@ export async function settleRound(
     const resolvedOutcome = await resolveRoundOutcome(targetRound);
     const settledAt = input.settledAt ?? resolvedOutcome.settledAt;
     const settlement = computeSettlement(targetRound, resolvedOutcome.outcome);
+    const settlementTrustStatus = settlement.trustStatus;
     await tx.round.update({
       data: {
         status: "settled",
@@ -210,13 +229,18 @@ export async function settleRound(
       });
     }
 
-    const { afterProfiles, beforeProfiles } = await applyBattleReputationUpdate(
-      tx,
-      {
-        round: targetRound,
-        winnerIdentityKey: settlement.winnerAgentKey,
-      },
-    );
+    const skippedReputationUpdate = settlementTrustStatus === "degraded";
+    const reputationSnapshots = skippedReputationUpdate
+      ? await applyBattleReputationUpdate(tx, {
+          dryRun: true,
+          round: targetRound,
+          winnerIdentityKey: settlement.winnerAgentKey,
+        })
+      : await applyBattleReputationUpdate(tx, {
+          round: targetRound,
+          winnerIdentityKey: settlement.winnerAgentKey,
+        });
+    const { afterProfiles, beforeProfiles } = reputationSnapshots;
     // 这里在干嘛：
     // 结算写入后重新读取 round 关系快照，再生成 proof payload。
     // 为什么这么写：

@@ -17,6 +17,8 @@ export type RoundSettlement = {
   finalBalance: number;
   pnlUsd: number;
   status: "pending" | "settled";
+  trustStatus: "degraded" | "trusted";
+  trustSummary?: string | null;
   winningSide: "yes" | "no" | null;
   winnerReputation?: SettledAgentReputation | null;
 };

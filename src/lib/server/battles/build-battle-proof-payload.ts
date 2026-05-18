@@ -11,6 +11,8 @@ import type {
 type SettlementComputationSnapshot = {
   finalBalance: number;
   pnlUsd: number;
+  trustStatus: "degraded" | "trusted";
+  trustSummary: string | null;
   winnerAgentKey: string | null;
   winnerName: string;
   winningSide: "yes" | "no" | null;
@@ -101,6 +103,8 @@ export function buildBattleProofPayload(params: {
     resolutionSource: params.round.event?.resolutionSource ?? "Pending source",
     roundId: params.round.id,
     settledAt: params.settledAt.toISOString(),
+    trustStatus: params.settlement.trustStatus,
+    trustSummary: params.settlement.trustSummary,
     winnerIdentityKey: params.settlement.winnerAgentKey,
     winnerName: params.settlement.winnerName,
     winningSide: params.settlement.winningSide,

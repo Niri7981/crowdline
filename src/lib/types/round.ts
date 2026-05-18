@@ -33,6 +33,7 @@ export type RoundPolymarketSnapshot = {
 export type RoundState = {
   id: string;
   status: "live" | "settled";
+  trustStatus: "degraded" | "trusted";
   bankrollPerAgent: number;
   startsAt: string | null;
   endsAt: string | null;

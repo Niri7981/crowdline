@@ -136,6 +136,30 @@ function mapExecutionStatus(value: string | null) {
   return null;
 }
 
+function mapRuntimeTrustStatus(
+  value: string | null | undefined,
+): "degraded" | "trusted" | null {
+  if (value === "failed-fallback") {
+    return "degraded";
+  }
+
+  if (
+    value === "completed" ||
+    value === "mocked" ||
+    value === "rules"
+  ) {
+    return "trusted";
+  }
+
+  return null;
+}
+
+function getRoundTrustStatus(round: PersistedRoundRecord): "degraded" | "trusted" {
+  return round.actions.some((action) => action.executionStatus === "failed-fallback")
+    ? "degraded"
+    : "trusted";
+}
+
 function mapTracePhase(value: string): RoundActionTracePhase {
   if (
     value === "context" ||
@@ -164,6 +188,7 @@ function mapActions(round: PersistedRoundRecord): RoundAction[] {
       executionModel: action.executionModel,
       executionProvider: mapRuntimeProvider(action.executionProvider),
       executionStatus: mapExecutionStatus(action.executionStatus),
+      trustStatus: mapRuntimeTrustStatus(action.executionStatus),
       runtimeKey: action.runtimeKey,
     },
     side: action.side === "no" ? "no" : "yes",
@@ -253,6 +278,7 @@ async function mapPolymarketSnapshots(): Promise<RoundState["polymarketSnapshots
 }
 
 async function mapSettlement(round: PersistedRoundRecord): Promise<RoundSettlement> {
+  const trustStatus = getRoundTrustStatus(round);
   const winnerAgent = round.agents.find(
     (agent) =>
       round.settlement?.winnerAgentKey &&
@@ -270,6 +296,11 @@ async function mapSettlement(round: PersistedRoundRecord): Promise<RoundSettleme
     finalBalance: round.settlement?.finalBalance ?? fallbackBalance,
     pnlUsd: round.settlement?.pnlUsd ?? 0,
     status: round.settlement?.status === "settled" ? "settled" : "pending",
+    trustStatus,
+    trustSummary:
+      trustStatus === "degraded"
+        ? "This round settled with fallback LLM execution, so it is visible history but not trusted identity proof."
+        : null,
     winningSide:
       round.settlement?.winningSide === "yes" ||
       round.settlement?.winningSide === "no"
@@ -314,5 +345,6 @@ export async function mapRoundToState(round: PersistedRoundRecord): Promise<Roun
     settlement: await mapSettlement(round),
     startsAt: round.startsAt ? round.startsAt.toISOString() : null,
     status: round.status === "settled" ? "settled" : "live",
+    trustStatus: getRoundTrustStatus(round),
   };
 }

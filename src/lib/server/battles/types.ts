@@ -52,6 +52,7 @@ export type BattleRecord = {
   roundId: string;
   marketSymbol: string;
   roundStatus: BattleStatus;
+  trustStatus?: "degraded" | "trusted";
   question: string;
   resolutionSource: string;
   outcome: BattleOutcome;
@@ -92,6 +93,8 @@ export type BattleProofPayload = {
   roundId: string;
   createdAt: string;
   settledAt: string | null;
+  trustStatus?: "degraded" | "trusted";
+  trustSummary?: string | null;
   eventId: string | null;
   marketSymbol: string;
   question: string;

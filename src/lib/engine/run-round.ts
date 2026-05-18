@@ -6,6 +6,7 @@ export function getDemoRoundState(): RoundState {
   const round: RoundState = {
     id: "round-demo-1",
     status: "live",
+    trustStatus: "trusted",
     bankrollPerAgent: 10,
     startsAt: null,
     endsAt: null,
@@ -50,6 +51,8 @@ export function getDemoRoundState(): RoundState {
       finalBalance: 11.8,
       pnlUsd: 1.8,
       status: "pending",
+      trustStatus: "trusted",
+      trustSummary: null,
       winningSide: null,
     },
   };

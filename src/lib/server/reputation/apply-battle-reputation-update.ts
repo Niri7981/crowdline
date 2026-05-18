@@ -80,6 +80,7 @@ async function findReputationProfilesForRound(
 export async function applyBattleReputationUpdate(
   tx: Prisma.TransactionClient,
   params: {
+    dryRun?: boolean;
     round: PersistedRoundRecord;
     winnerIdentityKey: string | null;
   },
@@ -88,6 +89,13 @@ export async function applyBattleReputationUpdate(
   const beforeProfiles = profileMappings.map(({ profile }) =>
     snapshotReputationProfile(profile),
   );
+
+  if (params.dryRun) {
+    return {
+      afterProfiles: [...beforeProfiles],
+      beforeProfiles,
+    };
+  }
 
   for (const { agent, profile } of profileMappings) {
     const isWinner =

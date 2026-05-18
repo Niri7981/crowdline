@@ -12,6 +12,8 @@ export function buildSettlementPreview(round: RoundState): RoundSettlement {
     finalBalance: winner.usdc,
     pnlUsd: winner.usdc - round.bankrollPerAgent,
     status: "settled",
+    trustStatus: round.trustStatus,
+    trustSummary: null,
     winningSide:
       round.actions.find((action) => action.agentId === winner.agentId)?.side ?? null,
   };

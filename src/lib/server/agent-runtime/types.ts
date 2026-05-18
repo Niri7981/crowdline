@@ -43,6 +43,7 @@ export type AgentRuntimeDecision = {
   side: "yes" | "no";
   sizeUsd: number;
   trace: AgentDecisionTraceStep[];
+  trustStatus: "degraded" | "trusted";
 };
 
 export type AgentRuntimeRawDecision = Pick<

@@ -4,6 +4,7 @@ export type RoundActionRuntimeSnapshot = {
   executionModel: string | null;
   executionProvider: "anthropic" | "external" | "mock" | "openai" | "rules" | null;
   executionStatus: "completed" | "failed-fallback" | "mocked" | "rules" | null;
+  trustStatus: "degraded" | "trusted" | null;
   runtimeKey: string | null;
 };
 
