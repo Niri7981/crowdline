@@ -8,24 +8,6 @@ datasource db {
   provider = "sqlite"
 }
 
-model Round {
-  id               String       @id @default(cuid())
-  status           String
-  marketSymbol     String
-  bankrollPerAgent Float
-  durationSeconds  Int
-  startsAt         DateTime?
-  endsAt           DateTime?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  event            RoundEvent?
-  agents           RoundAgent[]
-  actions          Action[]
-  actionTraceSteps ActionTraceStep[]
-  settlement       Settlement?
-  battleProof      BattleProofRecord?
-}
-
 model EventPoolItem {
   id               String   @id @default(cuid())
   sourceKey        String
@@ -59,137 +41,21 @@ model EventPoolItem {
   @@index([marketSymbol])
 }
 
-model AgentProfile {
-  id             String    @id @default(cuid())
-  identityKey    String    @unique
-  runtimeKey     String
-  name           String
-  avatarSeed     String
-  style          String
-  riskProfile    String
-  badge          String
-  currentRank    Int
-  previousRank   Int?
-  totalWins      Int       @default(0)
-  totalLosses    Int       @default(0)
-  currentStreak  Int       @default(0)
-  bestStreak     Int       @default(0)
-  tagline        String
-  isActive       Boolean   @default(true)
-  brainProvider  String?
-  brainModel     String?
-  brainSwappedAt DateTime?
-  externalEndpointUrl String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+model MarketTick {
+  id             String   @id @default(cuid())
+  sourceKey      String
+  marketId       String
+  conditionId    String?
+  tokenId        String
+  side           String
+  price          Float
+  sourceLabel    String
+  observedAt     DateTime
+  rawPayloadHash String?
+  createdAt      DateTime @default(now())
 
-  @@index([isActive, currentRank])
-  @@index([runtimeKey])
-}
-
-model RoundEvent {
-  id               String   @id @default(cuid())
-  roundId          String   @unique
-  question         String
-  resolutionSource String
-  startPrice       Float
-  endPrice         Float?
-  outcome          String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  round            Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
-}
-
-model RoundAgent {
-  id              String   @id @default(cuid())
-  roundId         String
-  agentKey        String
-  name            String
-  style           String
-  riskProfile     String
-  startingBalance Float
-  finalBalance    Float?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  round           Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  actions         Action[]
-  actionTraceSteps ActionTraceStep[]
-
-  @@index([roundId])
-  @@unique([roundId, agentKey])
-}
-
-model Action {
-  id                String     @id @default(cuid())
-  roundId           String
-  roundAgentId      String
-  side              String
-  sizeUsd           Float
-  reason            String
-  runtimeKey        String?
-  brainProvider     String?
-  brainModel        String?
-  executionProvider String?
-  executionModel    String?
-  executionStatus   String?
-  createdAt         DateTime   @default(now())
-  round             Round      @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  roundAgent        RoundAgent @relation(fields: [roundAgentId], references: [id], onDelete: Cascade)
-  traceSteps        ActionTraceStep[]
-
-  @@index([roundId])
-  @@index([roundAgentId])
-  @@index([runtimeKey])
-  @@index([brainProvider, brainModel])
-}
-
-model ActionTraceStep {
-  id           String     @id @default(cuid())
-  actionId     String
-  roundId      String
-  roundAgentId String
-  stepIndex    Int
-  phase        String
-  title        String
-  detail       String
-  createdAt    DateTime   @default(now())
-  action       Action     @relation(fields: [actionId], references: [id], onDelete: Cascade)
-  round        Round      @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  roundAgent   RoundAgent @relation(fields: [roundAgentId], references: [id], onDelete: Cascade)
-
-  @@unique([actionId, stepIndex])
-  @@index([roundId])
-  @@index([roundAgentId])
-  @@index([phase])
-}
-
-model Settlement {
-  id               String   @id @default(cuid())
-  roundId          String   @unique
-  status           String
-  outcome          String
-  winnerAgentKey   String?
-  winnerName       String?
-  winningSide      String?
-  finalBalance     Float?
-  pnlUsd           Float?
-  settledAt        DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  round            Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
-}
-
-model BattleProofRecord {
-  id                  String    @id @default(cuid())
-  roundId             String    @unique
-  proofVersion        Int
-  proofHash           String
-  proofHashEncoding   String
-  payload             String
-  onchainProofAddress String?
-  onchainSignature    String?
-  anchoredAt          DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  round               Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  @@unique([sourceKey, tokenId, observedAt])
+  @@index([sourceKey, marketId, observedAt])
+  @@index([tokenId, observedAt])
+  @@index([conditionId])
 }

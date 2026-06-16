@@ -1,9 +1,7 @@
 # Server Layer
 
-This folder owns server-side arena orchestration.
+This folder owns Crowdline server-side market reads.
 
-- `events/` contains the internal Event Pool services.
-- `agents/` contains the internal Agent Pool services.
-- `rounds/` contains the round / battle lifecycle services.
+- `crowdline/` contains World Cup market read models.
+- `events/` contains Polymarket event normalization and Event Pool reads.
 - `db/` continues to own the Prisma client.
-- `runtime/` stays focused on decision execution, not public identity.

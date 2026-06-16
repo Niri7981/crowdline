@@ -78,7 +78,7 @@ function pickPrimaryMarket(
 }
 
 // 这里只负责从 Polymarket 拉取“候选事件”。
-// 返回值仍然是外部 source 专属 shape，后面必须再经过 normalize-event.ts 才能进入 arena。
+// 返回值仍然是外部 source 专属 shape，后面必须再经过 normalize-event.ts 才能进入 Crowdline。
 export async function fetchPolymarketEventCandidates(
   input: FetchPolymarketEventCandidatesInput = {},
 ): Promise<PolymarketRawEventCandidate[]> {

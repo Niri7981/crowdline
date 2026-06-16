@@ -8,7 +8,7 @@ import type { PolymarketRawEventCandidate } from "./sources/polymarket";
 // MVP 阶段先把时间窗口放宽一些，保证 internal event pool 里有足够多可用候选。
 // 后面如果要做 featured rounds，再在 round-selection 层单独收紧。
 const MIN_EVENT_LEAD_MINUTES = 5;
-const MAX_EVENT_HORIZON_DAYS = 120;
+const MAX_EVENT_HORIZON_DAYS = 365;
 
 export type EventNormalizationFailureReason =
   | "missing_external_id"
@@ -117,16 +117,26 @@ function inferCategory(question: string, eventCategory: string | null): EventPoo
     return "crypto";
   }
 
-  if (
-    normalizedCategory.includes("politic") ||
-    normalizedCategory.includes("macro") ||
-    normalizedCategory.includes("econom")
-  ) {
-    return "macro";
-  }
-
   if (normalizedCategory.includes("sport")) {
     return "sports";
+  }
+
+  if (
+    normalizedCategory.includes("politic") ||
+    upperQuestion.includes("ELECTION") ||
+    upperQuestion.includes("PRESIDENT") ||
+    upperQuestion.includes("GOVERNOR")
+  ) {
+    return "headline";
+  }
+
+  if (
+    normalizedCategory.includes("macro") ||
+    normalizedCategory.includes("econom") ||
+    upperQuestion.includes("FED") ||
+    upperQuestion.includes("RATE CUT")
+  ) {
+    return "macro";
   }
 
   if (normalizedCategory.includes("news")) {
@@ -230,7 +240,7 @@ function inferSpectatorNote(category: EventPoolCategory) {
     return "Fast spectator comprehension and clean rivalry framing.";
   }
 
-  return "Readable question with enough clarity for a public battle.";
+  return "Readable question with enough clarity for a World Cup market.";
 }
 
 function inferStageLabel(category: EventPoolCategory) {
@@ -246,7 +256,7 @@ function inferStageLabel(category: EventPoolCategory) {
     return "Showdown Stage";
   }
 
-  return "Arena Stage";
+  return "Market Stage";
 }
 
 // 详细归一化结果给 seed 层使用，这样页面能知道 invalid 到底因为什么被刷掉。
@@ -359,7 +369,7 @@ export function normalizePolymarketEventWithReason(
   };
 }
 
-// battle 层和别的调用方如果只关心内部 normalized event，可以继续走这个简化入口。
+// 市场读取层如果只关心内部 normalized event，可以继续走这个简化入口。
 export function normalizePolymarketEvent(
   candidate: PolymarketRawEventCandidate,
 ): Omit<InternalEventPoolItem, "id"> | null {

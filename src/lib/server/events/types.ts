@@ -16,8 +16,8 @@ export type EventPoolCategory =
   | "sports"
   | "other";
 
-// 这是 arena 内部统一使用的 normalized event 结构。
-// 后面的 round、selection、profile、leaderboard 都只应该依赖这个形状，
+// 这是 Crowdline 内部统一使用的 normalized event 结构。
+// 后面的市场读取、价格曲线和结算逻辑都只应该依赖这个形状，
 // 不应该直接依赖任何外部事件源的原始字段。
 export type InternalEventPoolItem = {
   id: string;
@@ -51,6 +51,27 @@ export type GetEventPoolInput = {
   includeUnplayable?: boolean;
   limit?: number;
   status?: EventPoolStatus | EventPoolStatus[];
+};
+
+export type HotPolymarketEvent = {
+  id: string;
+  sourceKey: "polymarket";
+  externalEventId: string;
+  externalMarketId: string | null;
+  slug: string | null;
+  title: string;
+  question: string;
+  category: EventPoolCategory;
+  yesLabel: string;
+  noLabel: string;
+  endsAt: string | null;
+  externalUrl: string | null;
+  yesPrice: number | null;
+  noPrice: number | null;
+  volumeUsd: number | null;
+  liquidityScore: number | null;
+  spectatorNote: string;
+  stageLabel: string;
 };
 
 export type SeedEventPoolResult = {

@@ -15,7 +15,7 @@ type EventPoolRecord = NonNullable<
 
 // 读取层和 normalize 层保持一致，避免 seed 进来的事件又被页面读层刷掉。
 const MIN_EVENT_LEAD_MINUTES = 5;
-const MAX_EVENT_HORIZON_DAYS = 120;
+const MAX_EVENT_HORIZON_DAYS = 365;
 
 function mapRecordToInternalEvent(record: EventPoolRecord): InternalEventPoolItem {
   return {
@@ -46,9 +46,9 @@ function mapRecordToInternalEvent(record: EventPoolRecord): InternalEventPoolIte
   };
 }
 
-// 读取层再做一层 arena 级过滤，避免历史上已经 seed 过的宽松候选继续出现在产品页面里。
-// 这样 event-proof 页面展示的是“当前可用于开 round 的内部事件”，不是所有历史归一化记录。
-function isCurrentArenaPlayableEvent(record: EventPoolRecord) {
+// 读取层再做一层 Crowdline 级过滤，避免历史上已经 seed 过的宽松候选继续出现在产品页面里。
+// 这样市场页面展示的是“当前 World Cup V1 可用的内部事件”，不是所有历史归一化记录。
+function isCurrentCrowdlineEvent(record: EventPoolRecord) {
   if (!record.playable) {
     return false;
   }
@@ -65,7 +65,7 @@ function isCurrentArenaPlayableEvent(record: EventPoolRecord) {
   return endsAtMs > now + minLeadMs && endsAtMs <= now + maxHorizonMs;
 }
 
-// get-event-pool.ts 只读取 arena 自己的内部事件池。
+// get-event-pool.ts 只读取 Crowdline 自己的内部事件池。
 // 默认只返回可玩且处于 ready/live 的候选，不碰任何外部 raw source shape。
 export async function getEventPool(input: GetEventPoolInput = {}) {
   const statusFilter = Array.isArray(input.status)
@@ -91,7 +91,7 @@ export async function getEventPool(input: GetEventPoolInput = {}) {
 
   return records
     .filter((record) =>
-      input.includeUnplayable ? true : isCurrentArenaPlayableEvent(record),
+      input.includeUnplayable ? true : isCurrentCrowdlineEvent(record),
     )
     .map((record) => mapRecordToInternalEvent(record));
 }
