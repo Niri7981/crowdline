@@ -1,5 +1,5 @@
 {
-  "name": "agent-arena",
+  "name": "crowdline",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,8 +7,8 @@
     "build": "prisma generate && node scripts/init-sqlite-db.mjs && next build",
     "start": "next start",
     "lint": "eslint",
+    "market:inspect": "node scripts/inspect-polymarket-market.mjs",
     "market:indexer": "node scripts/market-indexer.mjs",
-    "round:runner": "node scripts/live-round-runner.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
@@ -16,17 +16,10 @@
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.7.0",
     "@prisma/client": "^7.7.0",
-    "@solana/web3.js": "^1.98.4",
-    "clsx": "^2.1.1",
-    "framer-motion": "^12.38.0",
     "lucide-react": "^1.8.0",
     "next": "16.2.4",
     "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "recharts": "^3.8.1",
-    "tailwind-merge": "^3.5.0",
-    "ws": "^8.20.0",
-    "zod": "^4.3.6"
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
