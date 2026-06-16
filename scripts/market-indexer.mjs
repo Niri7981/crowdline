@@ -9,23 +9,10 @@ import Database from "better-sqlite3";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_INTERVAL_MS = 5_000;
-const DEFAULT_SYMBOLS = ["SOL", "BTC", "ETH"];
+const DEFAULT_PROXY_URL = "http://127.0.0.1:6324";
 const MARKET_DATA_TIMEOUT_MS = 12_000;
 const POLYMARKET_CLOB_BASE_URL = "https://clob.polymarket.com";
 const POLYMARKET_GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
-const POLYMARKET_SOURCE_KEY = "polymarket";
-
-const COINBASE_PRODUCT_IDS = {
-  BTC: "BTC-USD",
-  ETH: "ETH-USD",
-  SOL: "SOL-USD",
-};
-
-const GATEIO_CURRENCY_PAIRS = {
-  BTC: "BTC_USDT",
-  ETH: "ETH_USDT",
-  SOL: "SOL_USDT",
-};
 
 function parseArgs(argv) {
   return Object.fromEntries(
@@ -33,6 +20,7 @@ function parseArgs(argv) {
       .filter((entry) => entry.startsWith("--"))
       .map((entry) => {
         const [rawKey, rawValue] = entry.slice(2).split("=");
+
         return [rawKey, rawValue ?? "true"];
       }),
   );
@@ -41,11 +29,29 @@ function parseArgs(argv) {
 function readProxyUrl(args) {
   return (
     args.proxy ??
-    process.env.AGENTDUEL_INDEXER_PROXY ??
+    process.env.CROWDLINE_POLYMARKET_PROXY ??
     process.env.HTTPS_PROXY ??
     process.env.HTTP_PROXY ??
-    null
+    DEFAULT_PROXY_URL
   );
+}
+
+function shouldSkipTlsVerificationForProxy(proxyUrl) {
+  if (!proxyUrl) {
+    return false;
+  }
+
+  if (process.env.CROWDLINE_POLYMARKET_PROXY_INSECURE === "true") {
+    return true;
+  }
+
+  try {
+    const hostname = new URL(proxyUrl).hostname;
+
+    return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
+  } catch {
+    return false;
+  }
 }
 
 function resolveDatabasePath() {
@@ -77,51 +83,30 @@ function hashPayload(payload) {
     .digest("hex");
 }
 
-function parseSymbols(value) {
-  if (!value) {
-    return DEFAULT_SYMBOLS;
-  }
-
-  const symbols = value
-    .split(",")
-    .map((symbol) => symbol.trim().toUpperCase())
-    .filter(Boolean);
-
-  if (symbols.length === 0) {
-    throw new Error("At least one market symbol is required.");
-  }
-
-  for (const symbol of symbols) {
-    if (!COINBASE_PRODUCT_IDS[symbol]) {
-      throw new Error(`Unsupported market symbol: ${symbol}.`);
-    }
-  }
-
-  return symbols;
-}
-
 function parsePolymarketConfig(args) {
   const slug =
-    args["polymarket-slug"] ?? process.env.AGENTDUEL_POLYMARKET_SLUG ?? null;
+    args["polymarket-slug"] ?? process.env.CROWDLINE_POLYMARKET_SLUG ?? null;
   const marketId =
     args["polymarket-market-id"] ??
-    process.env.AGENTDUEL_POLYMARKET_MARKET_ID ??
+    process.env.CROWDLINE_POLYMARKET_MARKET_ID ??
     null;
   const conditionId =
     args["polymarket-condition-id"] ??
-    process.env.AGENTDUEL_POLYMARKET_CONDITION_ID ??
+    process.env.CROWDLINE_POLYMARKET_CONDITION_ID ??
     null;
   const yesTokenId =
     args["polymarket-yes-token-id"] ??
-    process.env.AGENTDUEL_POLYMARKET_YES_TOKEN_ID ??
+    process.env.CROWDLINE_POLYMARKET_YES_TOKEN_ID ??
     null;
   const noTokenId =
     args["polymarket-no-token-id"] ??
-    process.env.AGENTDUEL_POLYMARKET_NO_TOKEN_ID ??
+    process.env.CROWDLINE_POLYMARKET_NO_TOKEN_ID ??
     null;
 
-  if (!slug && !yesTokenId && !noTokenId) {
-    return null;
+  if (!slug && !marketId && !yesTokenId && !noTokenId) {
+    throw new Error(
+      "Crowdline indexing requires CROWDLINE_POLYMARKET_SLUG or CROWDLINE_POLYMARKET_MARKET_ID.",
+    );
   }
 
   if (!slug && (!marketId || !yesTokenId || !noTokenId)) {
@@ -139,27 +124,26 @@ function parsePolymarketConfig(args) {
   };
 }
 
-function shouldAutoWatchLiveRounds(args) {
-  const rawValue =
-    args["watch-live-rounds"] ??
-    process.env.AGENTDUEL_INDEXER_WATCH_LIVE_ROUNDS ??
-    "true";
-
-  return rawValue !== "false";
-}
-
 async function fetchJsonWithCurl(input, proxyUrl) {
   const args = ["-sS", "--max-time", String(Math.ceil(MARKET_DATA_TIMEOUT_MS / 1000))];
 
   if (proxyUrl) {
     args.push("--proxy", proxyUrl);
+
+    if (shouldSkipTlsVerificationForProxy(proxyUrl)) {
+      args.push("-k");
+    }
   }
 
   args.push(input);
 
   const { stdout } = await execFileAsync("curl", args, {
-    maxBuffer: 4 * 1024 * 1024,
+    maxBuffer: 32 * 1024 * 1024,
   });
+
+  if (stdout.trim().length === 0) {
+    throw new Error("Polymarket returned an empty response.");
+  }
 
   return JSON.parse(stdout);
 }
@@ -190,90 +174,6 @@ async function fetchJsonWithTimeout(input, proxyUrl = null) {
   }
 }
 
-async function readGateIoPrice(symbol, proxyUrl) {
-  const currencyPair = GATEIO_CURRENCY_PAIRS[symbol];
-  const payload = await fetchJsonWithTimeout(
-    `https://api.gateio.ws/api/v4/spot/tickers?currency_pair=${currencyPair}`,
-    proxyUrl,
-  );
-  const amount = payload?.[0]?.last == null ? NaN : Number(payload[0].last);
-
-  if (!Number.isFinite(amount)) {
-    throw new Error(`Gate.io price response for ${symbol} was invalid.`);
-  }
-
-  return {
-    payload,
-    price: amount,
-    sourceLabel: "Gate Spot API",
-  };
-}
-
-async function readCoinbasePrice(symbol, proxyUrl) {
-  const productId = COINBASE_PRODUCT_IDS[symbol];
-  const payload = await fetchJsonWithTimeout(
-    `https://api.coinbase.com/v2/prices/${productId}/spot`,
-    proxyUrl,
-  );
-  const amount = payload?.data?.amount == null ? NaN : Number(payload.data.amount);
-
-  if (!Number.isFinite(amount)) {
-    throw new Error(`Coinbase price response for ${symbol} was invalid.`);
-  }
-
-  return {
-    payload,
-    price: amount,
-    sourceLabel: "Coinbase Spot API",
-  };
-}
-
-async function readIndexedPrice(symbol, proxyUrl) {
-  const errors = [];
-
-  try {
-    return await readGateIoPrice(symbol, proxyUrl);
-  } catch (error) {
-    errors.push(
-      error instanceof Error ? `Gate Spot API: ${error.message}` : "Gate Spot API failed.",
-    );
-  }
-
-  try {
-    return await readCoinbasePrice(symbol, proxyUrl);
-  } catch (error) {
-    errors.push(
-      error instanceof Error
-        ? `Coinbase Spot API: ${error.message}`
-        : "Coinbase Spot API failed.",
-    );
-  }
-
-  throw new Error(`Failed to index ${symbol}. ${errors.join(" / ")}`);
-}
-
-function createFactWriter(db) {
-  return db.prepare(`
-    INSERT OR IGNORE INTO FactPriceTick (
-      id,
-      symbol,
-      price,
-      sourceLabel,
-      observedAt,
-      rawPayloadHash,
-      createdAt
-    ) VALUES (
-      @id,
-      @symbol,
-      @price,
-      @sourceLabel,
-      @observedAt,
-      @rawPayloadHash,
-      @createdAt
-    )
-  `);
-}
-
 function createMarketWriter(db) {
   return db.prepare(`
     INSERT OR IGNORE INTO MarketTick (
@@ -302,32 +202,6 @@ function createMarketWriter(db) {
       @createdAt
     )
   `);
-}
-
-async function indexSymbol(symbol, writeFact, proxyUrl) {
-  const observedAt = new Date();
-  const fact = await readIndexedPrice(symbol, proxyUrl);
-  const row = {
-    createdAt: observedAt.toISOString(),
-    id: crypto.randomUUID(),
-    observedAt: observedAt.toISOString(),
-    price: fact.price,
-    rawPayloadHash: hashPayload(fact.payload),
-    sourceLabel: fact.sourceLabel,
-    symbol,
-  };
-
-  writeFact.run(row);
-
-  console.log(
-    [
-      "Indexed fact",
-      `symbol=${symbol}`,
-      `price=${fact.price.toFixed(2)}`,
-      `source=${fact.sourceLabel}`,
-      `observedAt=${row.observedAt}`,
-    ].join(" / "),
-  );
 }
 
 function parseJsonArray(value) {
@@ -548,8 +422,8 @@ async function indexPolymarketMarket(market, writeMarket, proxyUrl) {
 
     console.log(
       [
-        "Indexed market",
-        `source=polymarket`,
+        "Indexed Crowdline market",
+        "source=polymarket",
         `market=${market.marketId}`,
         `side=${entry.side.toUpperCase()}`,
         `price=${indexedPrice.toFixed(4)}`,
@@ -560,147 +434,32 @@ async function indexPolymarketMarket(market, writeMarket, proxyUrl) {
   }
 }
 
-function createLiveRoundWatchReader(db) {
-  return db.prepare(`
-    SELECT
-      re.externalMarketId AS externalMarketId,
-      re.slug AS slug,
-      re.question AS question
-    FROM Round r
-    INNER JOIN RoundEvent re ON re.roundId = r.id
-    WHERE r.status = 'live'
-      AND re.observationType = 'polymarket-price'
-      AND re.sourceKey = @sourceKey
-      AND re.externalMarketId IS NOT NULL
-    ORDER BY r.createdAt DESC, r.id DESC
-  `);
-}
-
-function readLiveRoundWatchlist(readWatchlist) {
-  const rows = readWatchlist.all({
-    sourceKey: POLYMARKET_SOURCE_KEY,
-  });
-  const watchlist = new Map();
-
-  for (const row of rows) {
-    const externalMarketId =
-      typeof row.externalMarketId === "string" && row.externalMarketId.trim().length > 0
-        ? row.externalMarketId.trim()
-        : null;
-
-    if (!externalMarketId || watchlist.has(externalMarketId)) {
-      continue;
-    }
-
-    watchlist.set(externalMarketId, {
-      marketId: externalMarketId,
-      question:
-        typeof row.question === "string" && row.question.trim().length > 0
-          ? row.question.trim()
-          : externalMarketId,
-      slug:
-        typeof row.slug === "string" && row.slug.trim().length > 0
-          ? row.slug.trim()
-          : null,
-    });
-  }
-
-  return [...watchlist.values()];
-}
-
-async function loadLiveRoundMarkets(params) {
-  const {
-    proxyUrl,
-    readWatchlist,
-    resolvedMarketCache,
-  } = params;
-  const liveWatchlist = readLiveRoundWatchlist(readWatchlist);
-  const markets = [];
-
-  for (const entry of liveWatchlist) {
-    const cacheKey = entry.marketId;
-    const cached = resolvedMarketCache.get(cacheKey);
-
-    if (cached) {
-      markets.push(cached);
-      continue;
-    }
-
-    try {
-      const resolvedMarket = entry.slug
-        ? await resolvePolymarketBySlug(entry.slug, proxyUrl)
-        : await resolvePolymarketByMarketId(entry.marketId, proxyUrl);
-      const mergedMarket = {
-        ...resolvedMarket,
-        title: resolvedMarket.title ?? entry.question,
-      };
-
-      resolvedMarketCache.set(cacheKey, mergedMarket);
-      markets.push(mergedMarket);
-    } catch (error) {
-      console.error(
-        `Failed to resolve live Polymarket watch target ${entry.marketId}.`,
-        error instanceof Error ? error.message : error,
-      );
-    }
-  }
-
-  return markets;
-}
-
 async function run() {
   const args = parseArgs(process.argv.slice(2));
   const intervalMs = Number(
-    args.interval ?? process.env.AGENTDUEL_INDEXER_INTERVAL_MS ?? DEFAULT_INTERVAL_MS,
+    args.interval ?? process.env.CROWDLINE_INDEXER_INTERVAL_MS ?? DEFAULT_INTERVAL_MS,
   );
   const maxTicks = args["max-ticks"]
     ? Number(args["max-ticks"])
-    : process.env.AGENTDUEL_INDEXER_MAX_TICKS
-      ? Number(process.env.AGENTDUEL_INDEXER_MAX_TICKS)
+    : process.env.CROWDLINE_INDEXER_MAX_TICKS
+      ? Number(process.env.CROWDLINE_INDEXER_MAX_TICKS)
       : null;
-  const symbols = parseSymbols(args.symbols ?? process.env.AGENTDUEL_INDEXER_SYMBOLS);
-  const polymarketConfig = parsePolymarketConfig(args);
-  const watchLiveRounds = shouldAutoWatchLiveRounds(args);
   const proxyUrl = readProxyUrl(args);
+  const polymarketConfig = parsePolymarketConfig(args);
 
   if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
     throw new Error("Indexer interval must be a positive number.");
   }
 
+  const market = await resolvePolymarketConfig(polymarketConfig, proxyUrl);
   const db = new Database(resolveDatabasePath());
-  const writeFact = createFactWriter(db);
   const writeMarket = createMarketWriter(db);
-  const readLiveRoundWatchlistStatement = createLiveRoundWatchReader(db);
-  const resolvedMarketCache = new Map();
-  let manuallyConfiguredPolymarketMarket = null;
-
-  if (polymarketConfig) {
-    try {
-      manuallyConfiguredPolymarketMarket = await resolvePolymarketConfig(
-        polymarketConfig,
-        proxyUrl,
-      );
-      resolvedMarketCache.set(
-        manuallyConfiguredPolymarketMarket.marketId,
-        manuallyConfiguredPolymarketMarket,
-      );
-    } catch (error) {
-      console.error(
-        "Polymarket config could not be resolved; continuing with fact indexing only.",
-        error instanceof Error ? error.message : error,
-      );
-    }
-  }
   let tickCount = 0;
 
   console.log(
     [
-      "Market indexer started",
-      `symbols=${symbols.join(",")}`,
-      manuallyConfiguredPolymarketMarket
-        ? `manual-polymarket=${manuallyConfiguredPolymarketMarket.title} (${manuallyConfiguredPolymarketMarket.marketId})`
-        : "manual-polymarket=disabled",
-      watchLiveRounds ? "live-round-watch=enabled" : "live-round-watch=disabled",
+      "Crowdline market indexer started",
+      `polymarket=${market.title} (${market.marketId})`,
       `interval=${intervalMs}ms`,
       proxyUrl ? `proxy=${proxyUrl}` : "proxy=none",
     ].join(" / "),
@@ -710,42 +469,7 @@ async function run() {
     while (true) {
       tickCount += 1;
 
-      for (const symbol of symbols) {
-        try {
-          await indexSymbol(symbol, writeFact, proxyUrl);
-        } catch (error) {
-          console.error(
-            `Failed to index ${symbol}.`,
-            error instanceof Error ? error.message : error,
-          );
-        }
-      }
-
-      const liveRoundMarkets = watchLiveRounds
-        ? await loadLiveRoundMarkets({
-            proxyUrl,
-            readWatchlist: readLiveRoundWatchlistStatement,
-            resolvedMarketCache,
-          })
-        : [];
-      const polymarketMarkets = [
-        ...(manuallyConfiguredPolymarketMarket ? [manuallyConfiguredPolymarketMarket] : []),
-        ...liveRoundMarkets,
-      ];
-      const uniquePolymarketMarkets = new Map(
-        polymarketMarkets.map((market) => [market.marketId, market]),
-      );
-
-      for (const polymarketMarket of uniquePolymarketMarkets.values()) {
-        try {
-          await indexPolymarketMarket(polymarketMarket, writeMarket, proxyUrl);
-        } catch (error) {
-          console.error(
-            `Failed to index Polymarket market ${polymarketMarket.marketId}.`,
-            error instanceof Error ? error.message : error,
-          );
-        }
-      }
+      await indexPolymarketMarket(market, writeMarket, proxyUrl);
 
       if (maxTicks != null && Number.isFinite(maxTicks) && tickCount >= maxTicks) {
         console.log(`Reached max indexer tick limit (${maxTicks}). Stopping.`);
@@ -760,6 +484,6 @@ async function run() {
 }
 
 run().catch((error) => {
-  console.error("Market indexer failed.", error);
+  console.error("Crowdline market indexer failed.", error);
   process.exitCode = 1;
 });

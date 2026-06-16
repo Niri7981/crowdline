@@ -1,456 +1,417 @@
-"use client";
-
-import React, { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { LandingNav } from "@/components/landing/LandingNav";
-import { LandingHero } from "@/components/landing/LandingHero";
-import { EventSelectionSection } from "@/components/landing/EventSelectionSection";
-import { AgentSelectionSection } from "@/components/landing/AgentSelectionSection";
-import { BattlePreviewSection } from "@/components/landing/BattlePreviewSection";
-import { SectionTransition } from "@/components/landing/SectionTransition";
+import Link from "next/link";
 import {
-  MOCK_EVENTS,
-  type LandingEvent,
-  type LandingEventCategory,
-} from "@/lib/mocks/landing-demo-data";
-import { useLandingAgents } from "@/lib/landing/use-landing-agents";
+  Activity,
+  ArrowRight,
+  ExternalLink,
+  Flame,
+  Wallet,
+  TrendingDown,
+  TrendingUp,
+  Trophy,
+} from "lucide-react";
+
 import {
-  createDemoRoundState,
-  writeStoredDemoRound,
-} from "@/lib/landing/demo-round-storage";
-import type { RoundState } from "@/lib/types/round";
+  CrowdlineCategoryNav,
+  CrowdlineTopNav,
+} from "@/components/crowdline/CrowdlineMarketShell";
+import { CrowdlineTradePanel } from "@/components/crowdline/CrowdlineTradePanel";
+import {
+  getCrowdlineHome,
+  type CrowdlineMarketGroup,
+  type CrowdlineMarketSummary,
+} from "@/lib/server/crowdline/get-world-cup-markets";
 
-type ApiError = {
-  error?: string;
-};
+export const dynamic = "force-dynamic";
 
-type EventPoolStatus = "candidate" | "ready" | "live" | "settled" | "archived";
+function formatKickoff(value: string | null) {
+  const formatted = formatDateTime(value);
 
-type EventPoolCategory = "crypto" | "macro" | "headline" | "sports" | "other";
-
-type EventPoolItem = {
-  id: string;
-  sourceKey: "polymarket";
-  externalEventId: string;
-  externalMarketId: string | null;
-  slug: string | null;
-  title: string;
-  question: string;
-  category: EventPoolCategory;
-  marketSymbol: string;
-  yesLabel: string;
-  noLabel: string;
-  startsAt: string | null;
-  endsAt: string | null;
-  durationSeconds: number;
-  resolutionSource: string;
-  sourceLabel: string;
-  externalUrl: string | null;
-  currentPrice: number | null;
-  volumeUsd: number | null;
-  liquidityScore: number | null;
-  status: EventPoolStatus;
-  playable: boolean;
-  spectatorNote: string;
-  stageLabel: string;
-};
-
-type EventCategoryFilter = LandingEventCategory | "All";
-
-const EVENT_WINDOW_SIZE = 3;
-const EVENT_CATEGORY_FILTERS: EventCategoryFilter[] = [
-  "All",
-  "Crypto",
-  "Finance",
-  "Sports",
-  "DeFi",
-  "Macro",
-  "Social",
-];
-
-async function createRound(input: { agentIds: string[]; eventId: string }) {
-  const response = await fetch("/api/round", {
-    body: JSON.stringify(input),
-    headers: {
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as ApiError | null;
-    throw new Error(payload?.error ?? "Failed to create duel round.");
-  }
-
-  return (await response.json()) as RoundState;
+  return formatted === "TBD" ? "Kickoff TBD" : formatted;
 }
 
-async function readPlayableEvents() {
-  const response = await fetch("/api/events?limit=10", {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as ApiError | null;
-
-    throw new Error(payload?.error ?? "Failed to load hot arena events.");
-  }
-
-  return (await response.json()) as EventPoolItem[];
-}
-
-async function syncHotEventPool() {
-  const response = await fetch("/api/events", {
-    body: JSON.stringify({
-      limit: 10,
-    }),
-    headers: {
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as ApiError | null;
-
-    throw new Error(payload?.error ?? "Failed to sync hot Polymarket events.");
-  }
-}
-
-function mapEventCategory(category: EventPoolCategory): LandingEventCategory {
-  if (category === "crypto") {
-    return "Crypto";
-  }
-
-  if (category === "sports") {
-    return "Sports";
-  }
-
-  if (category === "macro" || category === "headline") {
-    return "Macro";
-  }
-
-  return "Social";
-}
-
-function formatDeadline(value: string | null) {
+function formatDateTime(value: string | null) {
   if (!value) {
-    return "Deadline TBD";
+    return "TBD";
   }
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "Deadline TBD";
+    return "TBD";
   }
 
-  return date.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
+  return date.toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
   });
 }
 
-function formatConsensus(price: number | null) {
-  if (price == null) {
-    return "LIVE MARKET";
+function formatPrice(value: number | null) {
+  if (value == null) {
+    return "--";
   }
 
-  return `${Math.round(price * 100)}% YES`;
+  return `${Math.round(value * 100)}c`;
 }
 
-function inferDifficulty(price: number | null): LandingEvent["difficulty"] {
-  if (price == null) {
-    return "Medium";
+function formatDrift(value: number | null) {
+  if (value == null) {
+    return "--";
   }
 
-  const distance = Math.abs(price - 0.5);
+  const cents = Math.round(value * 100);
 
-  if (distance <= 0.12) {
-    return "High";
+  if (cents > 0) {
+    return `+${cents}c`;
   }
 
-  if (distance <= 0.28) {
-    return "Medium";
-  }
-
-  return "Low";
+  return `${cents}c`;
 }
 
-function buildShortQuestion(event: EventPoolItem) {
-  const source = event.title || event.question;
-  const normalized = source.replace(/\s+/g, " ").trim().toUpperCase();
+function formatVolume(value: number | null) {
+  if (value == null) {
+    return "--";
+  }
 
-  return normalized.length > 34 ? `${normalized.slice(0, 31)}...` : normalized;
+  if (value >= 1_000_000) {
+    return `$${(value / 1_000_000).toFixed(1)}M`;
+  }
+
+  if (value >= 1_000) {
+    return `$${(value / 1_000).toFixed(0)}K`;
+  }
+
+  return `$${value.toFixed(0)}`;
 }
 
-function mapEventPoolItemToLandingEvent(event: EventPoolItem): LandingEvent {
-  return {
-    category: mapEventCategory(event.category),
-    consensus: formatConsensus(event.currentPrice),
-    deadline: formatDeadline(event.endsAt),
-    difficulty: inferDifficulty(event.currentPrice),
-    id: event.id,
-    question: event.question,
-    shortQuestion: buildShortQuestion(event),
-    source: event.resolutionSource || "Polymarket Hot Event Pool",
-    sourceShort: "Polymarket",
-    status: event.status === "live" ? "SETTLING" : "OPEN",
-  };
+function formatGroupTitle(group: CrowdlineMarketGroup) {
+  if (group === "today") {
+    return "Today";
+  }
+
+  if (group === "tomorrow") {
+    return "Tomorrow";
+  }
+
+  return "Later";
 }
 
-function getFilteredEvents(events: LandingEvent[], category: EventCategoryFilter) {
-  if (category === "All") {
-    return events;
+function groupOrder(group: CrowdlineMarketGroup) {
+  if (group === "today") {
+    return 0;
   }
 
-  return events.filter((event) => event.category === category);
+  if (group === "tomorrow") {
+    return 1;
+  }
+
+  return 2;
 }
 
-function getVisibleEvents(events: LandingEvent[], startIndex: number) {
-  if (events.length <= EVENT_WINDOW_SIZE) {
-    return events;
-  }
-
-  return Array.from({ length: EVENT_WINDOW_SIZE }, (_, offset) => {
-    const eventIndex = (startIndex + offset) % events.length;
-    return events[eventIndex];
-  });
-}
-
-export default function HomePage() {
-  const router = useRouter();
-  const {
-    agents,
-    errorMessage: agentErrorMessage,
-    isLoading: isLoadingAgents,
-    refreshAgents,
-  } = useLandingAgents();
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isCreating, startCreateTransition] = useTransition();
-  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
-
-  const [arenaEvents, setArenaEvents] = useState<LandingEvent[]>(MOCK_EVENTS);
-  const [selectedEventId, setSelectedEventId] = useState<string>(MOCK_EVENTS[0].id);
-  const [eventWindowStart, setEventWindowStart] = useState(0);
-  const [selectedEventCategory, setSelectedEventCategory] =
-    useState<EventCategoryFilter>("All");
-  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
-
-  const filteredEvents = useMemo(
-    () => getFilteredEvents(arenaEvents, selectedEventCategory),
-    [arenaEvents, selectedEventCategory],
-  );
-  const visibleEvents = useMemo(
-    () => getVisibleEvents(filteredEvents, eventWindowStart),
-    [eventWindowStart, filteredEvents],
-  );
-  const selectedEvent =
-    arenaEvents.find((event) => event.id === selectedEventId) ||
-    filteredEvents[0] ||
-    arenaEvents[0] ||
-    MOCK_EVENTS[0];
-  const selectedAgents = selectedAgentIds
-    .map((agentId) => agents.find((agent) => agent.id === agentId))
-    .filter((agent): agent is NonNullable<typeof agent> => Boolean(agent));
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        let nextEvents = await readPlayableEvents();
-
-        if (nextEvents.length === 0) {
-          await syncHotEventPool();
-          nextEvents = await readPlayableEvents();
-        }
-
-        if (cancelled || nextEvents.length === 0) {
-          return;
-        }
-
-        const mappedEvents = nextEvents.map(mapEventPoolItemToLandingEvent);
-
-        setArenaEvents(mappedEvents);
-        setSelectedEventId(mappedEvents[0].id);
-        setEventWindowStart(0);
-        setErrorMessage(null);
-      } catch (error) {
-        if (!cancelled) {
-          setErrorMessage(
-            error instanceof Error ? error.message : "Failed to load hot arena events.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingEvents(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  function handleRefreshEvents() {
-    const nextStart =
-      filteredEvents.length > 0
-        ? (eventWindowStart + EVENT_WINDOW_SIZE) % filteredEvents.length
-        : 0;
-    const nextVisibleEvents = getVisibleEvents(filteredEvents, nextStart);
-
-    setEventWindowStart(nextStart);
-    setSelectedEventId(nextVisibleEvents[0]?.id ?? selectedEventId);
-  }
-
-  function handleSelectEventCategory(category: EventCategoryFilter) {
-    const nextEvents = getFilteredEvents(arenaEvents, category);
-
-    setSelectedEventCategory(category);
-    setEventWindowStart(0);
-    setSelectedEventId(nextEvents[0]?.id ?? selectedEventId);
-  }
-
-  function handleSelectEvent(eventId: string) {
-    const event = arenaEvents.find((candidate) => candidate.id === eventId);
-
-    setSelectedEventId(eventId);
-
-    if (event && selectedEventCategory !== "All" && event.category !== selectedEventCategory) {
-      setSelectedEventCategory(event.category);
-      setEventWindowStart(0);
-    }
-  }
-
-  function handleSelectAgent(agentId: string) {
-    setSelectedAgentIds((currentAgentIds) => {
-      if (currentAgentIds.includes(agentId)) {
-        return currentAgentIds.filter((currentAgentId) => currentAgentId !== agentId);
-      }
-
-      if (currentAgentIds.length < 2) {
-        return [...currentAgentIds, agentId];
-      }
-
-      return [currentAgentIds[0], agentId];
-    });
-  }
-
-  function handleEnterArena() {
-    setErrorMessage(null);
-    startCreateTransition(async () => {
-      try {
-        if (selectedAgents.length !== 2) {
-          throw new Error("Choose two arena agents before starting the duel.");
-        }
-
-        const nextRound = await createRound({
-          agentIds: selectedAgents.map((agent) => agent.id),
-          eventId: selectedEvent.id,
-        });
-        writeStoredDemoRound(nextRound);
-        router.push("/round");
-      } catch {
-        const demoRound = createDemoRoundState({
-          agents: selectedAgents,
-          event: selectedEvent,
-        });
-
-        writeStoredDemoRound(demoRound);
-        router.push("/round?demo=1");
-      }
-    });
-  }
-
-  const acidWallpaperStyle = { backgroundColor: "#fcee09" };
+function MarketOutcomeRows({
+  limit = 4,
+  market,
+}: {
+  limit?: number;
+  market: CrowdlineMarketSummary;
+}) {
+  const visibleOutcomes = market.outcomes.slice(0, limit);
 
   return (
-    <main
-      className="landing-black-text acid-yellow-section h-screen overflow-y-auto overflow-x-hidden snap-y snap-proximity scroll-smooth selection:bg-[#fcee09] selection:text-black"
-      style={acidWallpaperStyle}
-    >
-      <LandingNav />
-      
-      {/* Section 01: Hero */}
-      <section className="h-screen min-h-screen w-full snap-start snap-always shrink-0 overflow-hidden bg-black">
-        <LandingHero />
-      </section>
+    <div className="pm-outcomeList">
+      {visibleOutcomes.map((outcome) => {
+        const width = Math.max(2, Math.round((outcome.price ?? 0) * 100));
 
-      <SectionTransition from="dark" to="yellow" label="// EVENT.MODULE loading..." />
+        return (
+          <div className="pm-outcomeRow" key={outcome.id}>
+            <div className="min-w-0">
+              <div className="flex items-center justify-between gap-3">
+                <span className="truncate">{outcome.label}</span>
+                <span className="pm-price text-sm">{formatPrice(outcome.price)}</span>
+              </div>
+              <div className="pm-progressTrack mt-2">
+                <div className="pm-progressFill" style={{ width: `${width}%` }} />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {market.outcomes.length > visibleOutcomes.length ? (
+        <p className="text-xs font-semibold text-[#6f7b8c]">
+          +{market.outcomes.length - visibleOutcomes.length} more outcomes
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
-      {/* Section 02: Event Selection */}
-      <section
-        className="acid-yellow-section relative min-h-screen w-full snap-start snap-always shrink-0 overflow-hidden"
-        style={acidWallpaperStyle}
-      >
-        <div className="acid-yellow-gradient absolute inset-0" />
-        <div className="acid-grid-overlay absolute inset-0 opacity-25" />
-        <div className="relative z-10">
-        <EventSelectionSection 
-          activeCategory={selectedEventCategory}
-          categoryOptions={EVENT_CATEGORY_FILTERS}
-          events={arenaEvents}
-          isLoading={isLoadingEvents}
-          filteredEventCount={filteredEvents.length}
-          selectedEventId={selectedEventId} 
-          visibleEvents={visibleEvents}
-          onRefreshEvents={handleRefreshEvents}
-          onSelectCategory={handleSelectEventCategory}
-          onSelectEvent={handleSelectEvent}
+function MarketCard({ market }: { market: CrowdlineMarketSummary }) {
+  const driftPositive = (market.driftSinceOpen ?? 0) >= 0;
+  const secondaryLabel =
+    market.outcomeKind === "multi"
+      ? `${market.outcomes.length} outcomes`
+      : market.secondaryOutcomeLabel ?? "Down";
+
+  return (
+    <article className="pm-marketCard">
+      <div className="pm-marketCardTop">
+        <div className="pm-marketIcon">
+          <Trophy className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="pm-eyebrow normal-case tracking-normal text-[#778393]">
+              {market.stageLabel}
+            </span>
+            <span className="rounded-full bg-[#0b2237] px-2 py-0.5 text-[11px] font-bold text-[#2f9bff]">
+              {market.outcomeKind}
+            </span>
+          </div>
+          <Link className="pm-marketTitle mt-2 block" href={`/markets/${market.id}`}>
+            {market.title}
+          </Link>
+          <p className="pm-marketQuestion line-clamp-2">{market.question}</p>
+        </div>
+        <div className="text-right">
+          <p className="pm-price">{formatPrice(market.currentPrice)}</p>
+          <div
+            className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-bold ${
+              driftPositive
+                ? "bg-[#123f28] text-[#20d47a]"
+                : "bg-[#3d171d] text-[#ff5367]"
+            }`}
+          >
+            {driftPositive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+            {formatDrift(market.driftSinceOpen)}
+          </div>
+        </div>
+      </div>
+
+      <MarketOutcomeRows limit={market.outcomeKind === "multi" ? 4 : 2} market={market} />
+
+      <div className="grid gap-2 border-t border-white/10 pt-3 text-xs text-[#778393] sm:grid-cols-3">
+        <span>{formatVolume(market.volumeUsd)} volume</span>
+        <span>{formatKickoff(market.kickoffAt)}</span>
+        <span>{market.latestObservedAt ? `${formatDateTime(market.latestObservedAt)} tick` : "No tick"}</span>
+      </div>
+
+      <div className="pm-actionGrid">
+        <Link className="pm-buyUp" href={`/markets/${market.id}`}>
+          Up · {formatPrice(market.currentPrice)}
+        </Link>
+        <Link className="pm-buyDown" href={`/markets/${market.id}`}>
+          {secondaryLabel}
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+function MarketGroupSection({
+  group,
+  markets,
+}: {
+  group: CrowdlineMarketGroup;
+  markets: CrowdlineMarketSummary[];
+}) {
+  return (
+    <section className="pm-feed">
+      <div className="pm-feedHeader">
+        <div>
+          <p className="pm-eyebrow">Market feed</p>
+          <h2 className="pm-sectionTitle">{formatGroupTitle(group)}</h2>
+        </div>
+        <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-[#7d8897]">
+          {markets.length} markets
+        </span>
+      </div>
+      {markets.map((market) => (
+        <MarketCard key={market.id} market={market} />
+      ))}
+    </section>
+  );
+}
+
+function LeftRail() {
+  const items = [
+    ["All", "World Cup markets"],
+    ["Trending", "Fastest moving odds"],
+    ["Locking Soon", "Closest kickoff windows"],
+    ["Settlement", "Open to lock direction"],
+  ];
+
+  return (
+    <aside className="pm-rail pm-leftRail">
+      <div className="pm-card pm-cardPad">
+        <p className="pm-eyebrow">Categories</p>
+        <div className="mt-4 grid gap-2">
+          {items.map(([label, description], index) => (
+            <Link
+              className={`rounded-xl px-3 py-3 transition hover:bg-white/5 ${
+                index === 0 ? "bg-[#0b2237] text-[#2f9bff]" : "text-[#9ba6b5]"
+              }`}
+              href="/"
+              key={label}
+            >
+              <span className="block text-sm font-bold">{label}</span>
+              <span className="mt-1 block text-xs text-[#667284]">{description}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div className="pm-card pm-cardPad">
+        <p className="pm-eyebrow">Crowdline V1</p>
+        <p className="mt-3 text-sm leading-6 text-[#8a96a6]">
+          Trade UP or DOWN on how a real World Cup Polymarket price moves from
+          open to kickoff, with wallet-linked V1 positions.
+        </p>
+      </div>
+    </aside>
+  );
+}
+
+function RightRail({ featuredMarket }: { featuredMarket: CrowdlineMarketSummary | null }) {
+  return (
+    <aside className="pm-rail">
+      <div className="pm-card pm-cardPad">
+        <div className="flex items-center gap-3">
+          <div className="pm-marketIcon h-10 w-10">
+            <Wallet className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="pm-eyebrow">Wallet game</p>
+            <h2 className="text-lg font-bold text-white">Build a World Cup book.</h2>
+          </div>
+        </div>
+        <div className="mt-5 grid grid-cols-3 gap-2 text-center">
+          {[
+            ["Funds", "Wallet"],
+            ["Market", "Polymarket"],
+            ["Rank", "PnL"],
+          ].map(([label, value]) => (
+            <div className="rounded-xl bg-[#0b0f12] p-3" key={label}>
+              <p className="text-[10px] font-bold uppercase text-[#667284]">{label}</p>
+              <p className="mt-1 text-sm font-bold text-white">{value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {featuredMarket ? (
+        <CrowdlineTradePanel
+          currentPrice={featuredMarket.currentPrice}
+          driftSinceOpen={featuredMarket.driftSinceOpen}
+          marketId={featuredMarket.id}
+          openPrice={featuredMarket.openPrice}
+          title={featuredMarket.title}
+          tradingStatus={featuredMarket.tradingStatus}
+          underlyingLabel={featuredMarket.primaryOutcomeLabel}
         />
+      ) : null}
+    </aside>
+  );
+}
+
+export default async function HomePage() {
+  const { featuredMarket, marketsByGroup } = await getCrowdlineHome();
+  const groupedEntries = (Object.entries(marketsByGroup) as Array<
+    [CrowdlineMarketGroup, CrowdlineMarketSummary[]]
+  >)
+    .filter(([, markets]) => markets.length > 0)
+    .sort((left, right) => groupOrder(left[0]) - groupOrder(right[0]));
+
+  return (
+    <main className="pm-page">
+      <CrowdlineTopNav />
+      <CrowdlineCategoryNav />
+
+      <div className="pm-container">
+        <div className="pm-homeGrid">
+          <LeftRail />
+
+          <section className="pm-feed">
+            {featuredMarket ? (
+              <section className="pm-card pm-cardPad">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#171d12] px-2.5 py-1 text-xs font-bold text-[#d6a900]">
+                        <Flame className="h-3.5 w-3.5" />
+                        Featured
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#0b2237] px-2.5 py-1 text-xs font-bold text-[#2f9bff]">
+                        <Wallet className="h-3.5 w-3.5" />
+                        Wallet
+                      </span>
+                    </div>
+                    <h1 className="mt-4 text-2xl font-bold text-white sm:text-3xl">
+                      {featuredMarket.title}
+                    </h1>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-[#8793a3]">
+                      {featuredMarket.question}
+                    </p>
+                  </div>
+                  {featuredMarket.externalUrl ? (
+                    <Link className="pm-link inline-flex items-center gap-2" href={featuredMarket.externalUrl}>
+                      Polymarket source
+                      <ExternalLink className="h-4 w-4" />
+                    </Link>
+                  ) : null}
+                </div>
+
+                <div className="mt-5">
+                  <MarketOutcomeRows limit={featuredMarket.outcomeKind === "multi" ? 5 : 2} market={featuredMarket} />
+                </div>
+
+                <div className="pm-statGrid mt-5">
+                  <div className="pm-stat">
+                    <p className="pm-eyebrow">Leader</p>
+                    <p className="pm-statValue">
+                      {featuredMarket.primaryOutcomeLabel} · {formatPrice(featuredMarket.currentPrice)}
+                    </p>
+                  </div>
+                  <div className="pm-stat">
+                    <p className="pm-eyebrow">Outcomes</p>
+                    <p className="pm-statValue">{featuredMarket.outcomes.length}</p>
+                  </div>
+                  <div className="pm-stat">
+                    <p className="pm-eyebrow">Volume</p>
+                    <p className="pm-statValue">{formatVolume(featuredMarket.volumeUsd)}</p>
+                  </div>
+                  <div className="pm-stat">
+                    <p className="pm-eyebrow">Kickoff</p>
+                    <p className="pm-statValue">{formatKickoff(featuredMarket.kickoffAt)}</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <Link className="pm-primaryButton" href={`/markets/${featuredMarket.id}`}>
+                    Open market
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </section>
+            ) : null}
+
+            {groupedEntries.length > 0 ? (
+              groupedEntries.map(([group, markets]) => (
+                <MarketGroupSection group={group} key={group} markets={markets} />
+              ))
+            ) : (
+              <div className="pm-card pm-cardPad text-center">
+                <Activity className="mx-auto h-8 w-8 text-[#2f9bff]" />
+                <h2 className="mt-4 text-xl font-bold text-white">World Cup market list is empty</h2>
+                <p className="mt-2 text-sm text-[#8793a3]">
+                  The Crowdline shell is ready, but the local event pool needs markets.
+                </p>
+              </div>
+            )}
+          </section>
+
+          <RightRail featuredMarket={featuredMarket} />
         </div>
-      </section>
-
-      <SectionTransition from="yellow" to="yellow" label="// AGENT.SELECTOR online..." />
-
-      {/* Section 03: Agent Selection */}
-      <section
-        className="acid-yellow-section relative min-h-screen w-full snap-start snap-always shrink-0 overflow-hidden"
-        style={acidWallpaperStyle}
-      >
-        <div className="acid-yellow-gradient absolute inset-0" />
-        <div className="acid-grid-overlay absolute inset-0 opacity-25" />
-        <div className="relative z-10">
-        <AgentSelectionSection 
-          agents={agents}
-          errorMessage={agentErrorMessage}
-          isLoading={isLoadingAgents}
-          onAgentCreated={refreshAgents}
-          selectedAgentIds={selectedAgentIds}
-          onSelectAgent={handleSelectAgent}
-        />
-        </div>
-      </section>
-
-      <SectionTransition from="yellow" to="yellow" label="// BATTLE.PREVIEW armed..." labelOnly />
-
-      {/* Section 04: Battle Preview */}
-      <section
-        className="acid-yellow-section relative min-h-screen w-full snap-start snap-always shrink-0 overflow-hidden"
-        style={acidWallpaperStyle}
-      >
-        <div className="acid-yellow-gradient absolute inset-0" />
-        <div className="acid-grid-overlay absolute inset-0 opacity-25" />
-        <div className="relative z-10">
-        <BattlePreviewSection 
-          errorMessage={agentErrorMessage}
-          isLoadingAgents={isLoadingAgents}
-          selectedEvent={selectedEvent}
-          selectedAgents={selectedAgents}
-          onEnterArena={handleEnterArena}
-          isCreating={isCreating}
-        />
-        </div>
-      </section>
-
-      {/* Global Error Message Toast-like */}
-      {errorMessage && (
-        <div className="fixed bottom-10 right-10 z-50 border-[3px] border-black bg-[#fcee09] p-4 text-xs font-black uppercase tracking-widest text-black shadow-[8px_8px_0_#000] animate-in fade-in slide-in-from-bottom-5">
-          {errorMessage}
-        </div>
-      )}
+      </div>
     </main>
   );
 }

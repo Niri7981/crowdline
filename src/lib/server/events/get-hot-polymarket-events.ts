@@ -40,9 +40,23 @@ type PolymarketEvent = {
 };
 
 export function readPolymarketProxyUrl() {
-  return process.env.AGENTDUEL_INDEXER_PROXY ??
-    process.env.AGENTDUEL_POLYMARKET_PROXY ??
+  return process.env.CROWDLINE_INDEXER_PROXY ??
+    process.env.CROWDLINE_POLYMARKET_PROXY ??
     DEFAULT_PROXY_URL;
+}
+
+function shouldSkipTlsVerificationForProxy(proxyUrl: string) {
+  if (process.env.CROWDLINE_POLYMARKET_PROXY_INSECURE === "true") {
+    return true;
+  }
+
+  try {
+    const hostname = new URL(proxyUrl).hostname;
+
+    return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
+  } catch {
+    return false;
+  }
 }
 
 async function fetchJsonWithTimeout(input: string) {
@@ -77,16 +91,23 @@ async function fetchJsonViaProxy(input: string) {
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
   const execFileAsync = promisify(execFile);
+  const args = [
+    "-sS",
+    "--max-time",
+    String(Math.ceil(HOT_EVENT_TIMEOUT_MS / 1000)),
+    "--proxy",
+    proxyUrl,
+  ];
+
+  if (shouldSkipTlsVerificationForProxy(proxyUrl)) {
+    args.push("-k");
+  }
+
+  args.push(input);
+
   const { stdout } = await execFileAsync(
     "curl",
-    [
-      "-sS",
-      "--max-time",
-      String(Math.ceil(HOT_EVENT_TIMEOUT_MS / 1000)),
-      "--proxy",
-      proxyUrl,
-      input,
-    ],
+    args,
     {
       maxBuffer: 32 * 1024 * 1024,
     },
@@ -295,8 +316,8 @@ export function mapHotPolymarketEvent(event: PolymarketEvent): HotPolymarketEven
     question: market.question ?? event.title ?? "Polymarket event",
     slug: market.slug ?? event.slug ?? null,
     sourceKey: "polymarket",
-    spectatorNote:
-      "Hot Polymarket event with live market disagreement, suitable for arena selection.",
+      spectatorNote:
+        "Hot Polymarket event with live market disagreement, suitable for Crowdline selection.",
     stageLabel: "Hot Market",
     title: event.title ?? market.question ?? "Polymarket event",
     volumeUsd,
@@ -338,9 +359,9 @@ export function mapHotPolymarketEventToCandidate(
 }
 
 // 这里在干嘛：
-// 从 Polymarket 热门事件里挑出还有悬念的市场，作为 arena 可观战候选。
+// 从 Polymarket 热门事件里挑出还有悬念的市场，作为 Crowdline 可选候选。
 // 为什么这么写：
-// 0/1 附近的事件已经没有比赛张力；热门但价格仍在中间区间的事件更适合 agent duel。
+// 0/1 附近的事件已经没有足够价格变化空间；热门但价格仍在中间区间的事件更适合方向交易。
 // 最后返回什么：
 // 返回最多 limit 个热门、活跃、未收盘、YES 价格不极端的 Polymarket events。
 export async function getHotPolymarketEvents(limit = 10) {

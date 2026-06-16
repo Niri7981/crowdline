@@ -240,7 +240,7 @@ function inferSpectatorNote(category: EventPoolCategory) {
     return "Fast spectator comprehension and clean rivalry framing.";
   }
 
-  return "Readable question with enough clarity for a public battle.";
+  return "Readable question with enough clarity for a World Cup market.";
 }
 
 function inferStageLabel(category: EventPoolCategory) {
@@ -256,7 +256,7 @@ function inferStageLabel(category: EventPoolCategory) {
     return "Showdown Stage";
   }
 
-  return "Arena Stage";
+  return "Market Stage";
 }
 
 // 详细归一化结果给 seed 层使用，这样页面能知道 invalid 到底因为什么被刷掉。
@@ -369,7 +369,7 @@ export function normalizePolymarketEventWithReason(
   };
 }
 
-// battle 层和别的调用方如果只关心内部 normalized event，可以继续走这个简化入口。
+// 市场读取层如果只关心内部 normalized event，可以继续走这个简化入口。
 export function normalizePolymarketEvent(
   candidate: PolymarketRawEventCandidate,
 ): Omit<InternalEventPoolItem, "id"> | null {

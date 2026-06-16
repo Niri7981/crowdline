@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 
-import { getLeaderboard } from "@/lib/server/leaderboard/get-leaderboard";
+export type CrowdlineLeaderboardEntry = {
+  pnlSol: number;
+  rank: number;
+  totalTrades: number;
+  walletAddress: string;
+  winRate: number | null;
+};
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const includeInactive = searchParams.get("includeInactive") === "true";
-  const limitParam = searchParams.get("limit");
-  const limit = limitParam ? Number(limitParam) : undefined;
+export async function GET() {
+  const entries: CrowdlineLeaderboardEntry[] = [];
 
-  return NextResponse.json(
-    await getLeaderboard({
-      includeInactive,
-      limit: Number.isFinite(limit) ? limit : undefined,
-    }),
-  );
+  return NextResponse.json({
+    entries,
+    source: "crowdline-v1-local-ledger-pending",
+  });
 }
