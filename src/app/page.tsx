@@ -203,6 +203,18 @@ function MarketCard({ market }: { market: CrowdlineMarketSummary }) {
           {secondaryLabel}
         </Link>
       </div>
+
+      {market.externalUrl ? (
+        <a
+          className="inline-flex items-center justify-center gap-2 border-t border-white/10 pt-3 text-xs font-bold text-[#8fa0b8] transition hover:text-white"
+          href={market.externalUrl}
+          rel="noreferrer"
+          target="_blank"
+        >
+          View on Polymarket
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      ) : null}
     </article>
   );
 }
