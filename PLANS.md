@@ -63,6 +63,17 @@ server-side Crowdline tables and routes:
 - realized and unrealized PnL
 - leaderboard aggregation
 
+### Backend Build Schedule
+
+| Date | Focus | Deliverable | Acceptance |
+| --- | --- | --- | --- |
+| 2026-06-30 | Database foundation | Add Crowdline wallet, credit ledger, order, fill, and position tables to Prisma and SQLite init SQL. | Prisma schema validates and the SQLite init script can create the expanded schema. |
+| 2026-07-01 | Wallet account and credits | Add wallet upsert plus one-time credit claim flow. | A wallet address can claim V1 credits once and balance can be read from ledger entries. |
+| 2026-07-02 | Order and fill flow | Add server-side order creation, fill recording, balance debit, and position upsert. | Buying UP or DOWN writes order, fill, ledger, and position rows in one transaction. |
+| 2026-07-03 | Portfolio API | Move portfolio reads from browser storage to server data. | Refreshing the browser keeps wallet positions and balance intact. |
+| 2026-07-04 | Leaderboard aggregation | Aggregate wallet PnL and activity from server rows. | `/leaderboard` shows non-empty server-backed rankings once trades exist. |
+| 2026-07-05 | Stabilization | Add guardrails, edge-case handling, and cleanup. | Claim, order, portfolio, and leaderboard paths pass lint/build and obvious failure cases. |
+
 ### Acceptance For V1-Only Cleanup
 
 - Old routes such as `/agents`, `/round`, `/battles`, and `/events` return 404.
