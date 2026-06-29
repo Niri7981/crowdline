@@ -71,11 +71,15 @@ CREATE TABLE IF NOT EXISTS WalletAccount (
   normalizedAddress TEXT NOT NULL,
   networkLabel TEXT,
   createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deletedAt DATETIME
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS WalletAccount_walletKind_normalizedAddress_key
   ON WalletAccount(walletKind, normalizedAddress);
+
+CREATE INDEX IF NOT EXISTS WalletAccount_deletedAt_idx
+  ON WalletAccount(deletedAt);
 
 CREATE INDEX IF NOT EXISTS WalletAccount_normalizedAddress_idx
   ON WalletAccount(normalizedAddress);
@@ -91,19 +95,23 @@ CREATE TABLE IF NOT EXISTS CreditLedgerEntry (
   dedupeKey TEXT,
   note TEXT,
   createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deletedAt DATETIME,
   CONSTRAINT CreditLedgerEntry_walletAccountId_fkey
     FOREIGN KEY (walletAccountId) REFERENCES WalletAccount(id)
-    ON DELETE CASCADE ON UPDATE CASCADE
+    ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS CreditLedgerEntry_dedupeKey_key
   ON CreditLedgerEntry(dedupeKey);
 
-CREATE INDEX IF NOT EXISTS CreditLedgerEntry_walletAccountId_createdAt_idx
-  ON CreditLedgerEntry(walletAccountId, createdAt);
+CREATE INDEX IF NOT EXISTS CreditLedgerEntry_deletedAt_idx
+  ON CreditLedgerEntry(deletedAt);
 
 CREATE INDEX IF NOT EXISTS CreditLedgerEntry_referenceType_referenceId_idx
   ON CreditLedgerEntry(referenceType, referenceId);
+
+CREATE INDEX IF NOT EXISTS CreditLedgerEntry_walletAccountId_deletedAt_createdAt_idx
+  ON CreditLedgerEntry(walletAccountId, deletedAt, createdAt);
 
 CREATE TABLE IF NOT EXISTS CrowdlineOrder (
   id TEXT PRIMARY KEY NOT NULL,
@@ -117,22 +125,26 @@ CREATE TABLE IF NOT EXISTS CrowdlineOrder (
   marketTitle TEXT NOT NULL,
   createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   filledAt DATETIME,
+  deletedAt DATETIME,
   CONSTRAINT CrowdlineOrder_walletAccountId_fkey
     FOREIGN KEY (walletAccountId) REFERENCES WalletAccount(id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
+    ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT CrowdlineOrder_marketId_fkey
     FOREIGN KEY (marketId) REFERENCES EventPoolItem(id)
     ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS CrowdlineOrder_walletAccountId_createdAt_idx
-  ON CrowdlineOrder(walletAccountId, createdAt);
+CREATE INDEX IF NOT EXISTS CrowdlineOrder_deletedAt_idx
+  ON CrowdlineOrder(deletedAt);
 
 CREATE INDEX IF NOT EXISTS CrowdlineOrder_marketId_side_idx
   ON CrowdlineOrder(marketId, side);
 
 CREATE INDEX IF NOT EXISTS CrowdlineOrder_status_createdAt_idx
   ON CrowdlineOrder(status, createdAt);
+
+CREATE INDEX IF NOT EXISTS CrowdlineOrder_walletAccountId_deletedAt_createdAt_idx
+  ON CrowdlineOrder(walletAccountId, deletedAt, createdAt);
 
 CREATE TABLE IF NOT EXISTS CrowdlineFill (
   id TEXT PRIMARY KEY NOT NULL,
@@ -144,12 +156,13 @@ CREATE TABLE IF NOT EXISTS CrowdlineFill (
   price REAL NOT NULL,
   shares REAL NOT NULL,
   createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deletedAt DATETIME,
   CONSTRAINT CrowdlineFill_orderId_fkey
     FOREIGN KEY (orderId) REFERENCES CrowdlineOrder(id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
+    ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT CrowdlineFill_walletAccountId_fkey
     FOREIGN KEY (walletAccountId) REFERENCES WalletAccount(id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
+    ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT CrowdlineFill_marketId_fkey
     FOREIGN KEY (marketId) REFERENCES EventPoolItem(id)
     ON DELETE RESTRICT ON UPDATE CASCADE
@@ -158,11 +171,14 @@ CREATE TABLE IF NOT EXISTS CrowdlineFill (
 CREATE UNIQUE INDEX IF NOT EXISTS CrowdlineFill_orderId_key
   ON CrowdlineFill(orderId);
 
-CREATE INDEX IF NOT EXISTS CrowdlineFill_walletAccountId_createdAt_idx
-  ON CrowdlineFill(walletAccountId, createdAt);
+CREATE INDEX IF NOT EXISTS CrowdlineFill_deletedAt_idx
+  ON CrowdlineFill(deletedAt);
 
 CREATE INDEX IF NOT EXISTS CrowdlineFill_marketId_side_idx
   ON CrowdlineFill(marketId, side);
+
+CREATE INDEX IF NOT EXISTS CrowdlineFill_walletAccountId_deletedAt_createdAt_idx
+  ON CrowdlineFill(walletAccountId, deletedAt, createdAt);
 
 CREATE TABLE IF NOT EXISTS CrowdlinePosition (
   id TEXT PRIMARY KEY NOT NULL,
@@ -175,9 +191,10 @@ CREATE TABLE IF NOT EXISTS CrowdlinePosition (
   realizedPnl REAL NOT NULL DEFAULT 0,
   openedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deletedAt DATETIME,
   CONSTRAINT CrowdlinePosition_walletAccountId_fkey
     FOREIGN KEY (walletAccountId) REFERENCES WalletAccount(id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
+    ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT CrowdlinePosition_marketId_fkey
     FOREIGN KEY (marketId) REFERENCES EventPoolItem(id)
     ON DELETE RESTRICT ON UPDATE CASCADE
@@ -186,8 +203,11 @@ CREATE TABLE IF NOT EXISTS CrowdlinePosition (
 CREATE UNIQUE INDEX IF NOT EXISTS CrowdlinePosition_walletAccountId_marketId_side_key
   ON CrowdlinePosition(walletAccountId, marketId, side);
 
+CREATE INDEX IF NOT EXISTS CrowdlinePosition_deletedAt_idx
+  ON CrowdlinePosition(deletedAt);
+
 CREATE INDEX IF NOT EXISTS CrowdlinePosition_marketId_side_idx
   ON CrowdlinePosition(marketId, side);
 
-CREATE INDEX IF NOT EXISTS CrowdlinePosition_walletAccountId_updatedAt_idx
-  ON CrowdlinePosition(walletAccountId, updatedAt);
+CREATE INDEX IF NOT EXISTS CrowdlinePosition_walletAccountId_deletedAt_updatedAt_idx
+  ON CrowdlinePosition(walletAccountId, deletedAt, updatedAt);

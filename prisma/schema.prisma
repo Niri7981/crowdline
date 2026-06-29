@@ -71,12 +71,14 @@ model WalletAccount {
   networkLabel        String?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
+  deletedAt           DateTime?
   creditLedgerEntries CreditLedgerEntry[]
   orders              CrowdlineOrder[]
   fills               CrowdlineFill[]
   positions           CrowdlinePosition[]
 
   @@unique([walletKind, normalizedAddress])
+  @@index([deletedAt])
   @@index([normalizedAddress])
 }
 
@@ -91,10 +93,12 @@ model CreditLedgerEntry {
   dedupeKey       String?       @unique
   note            String?
   createdAt       DateTime      @default(now())
-  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?
+  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
 
-  @@index([walletAccountId, createdAt])
+  @@index([deletedAt])
   @@index([referenceType, referenceId])
+  @@index([walletAccountId, deletedAt, createdAt])
 }
 
 model CrowdlineOrder {
@@ -109,13 +113,15 @@ model CrowdlineOrder {
   marketTitle     String
   createdAt       DateTime        @default(now())
   filledAt        DateTime?
-  walletAccount   WalletAccount   @relation(fields: [walletAccountId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?
+  walletAccount   WalletAccount   @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
   market          EventPoolItem    @relation(fields: [marketId], references: [id], onDelete: Restrict)
   fill            CrowdlineFill?
 
-  @@index([walletAccountId, createdAt])
+  @@index([deletedAt])
   @@index([marketId, side])
   @@index([status, createdAt])
+  @@index([walletAccountId, deletedAt, createdAt])
 }
 
 model CrowdlineFill {
@@ -128,12 +134,14 @@ model CrowdlineFill {
   price           Float
   shares          Float
   createdAt       DateTime       @default(now())
-  order           CrowdlineOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  walletAccount   WalletAccount  @relation(fields: [walletAccountId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?
+  order           CrowdlineOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  walletAccount   WalletAccount  @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
   market          EventPoolItem   @relation(fields: [marketId], references: [id], onDelete: Restrict)
 
-  @@index([walletAccountId, createdAt])
+  @@index([deletedAt])
   @@index([marketId, side])
+  @@index([walletAccountId, deletedAt, createdAt])
 }
 
 model CrowdlinePosition {
@@ -147,10 +155,12 @@ model CrowdlinePosition {
   realizedPnl     Float         @default(0)
   openedAt        DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
-  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?
+  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
   market          EventPoolItem  @relation(fields: [marketId], references: [id], onDelete: Restrict)
 
   @@unique([walletAccountId, marketId, side])
+  @@index([deletedAt])
   @@index([marketId, side])
-  @@index([walletAccountId, updatedAt])
+  @@index([walletAccountId, deletedAt, updatedAt])
 }
