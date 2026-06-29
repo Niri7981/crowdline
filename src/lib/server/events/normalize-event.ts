@@ -6,7 +6,7 @@ import type {
 import type { PolymarketRawEventCandidate } from "./sources/polymarket";
 
 // MVP 阶段先把时间窗口放宽一些，保证 internal event pool 里有足够多可用候选。
-// 后面如果要做 featured rounds，再在 round-selection 层单独收紧。
+// 后面如果要做 featured markets，再在 market-selection 层单独收紧。
 const MIN_EVENT_LEAD_MINUTES = 5;
 const MAX_EVENT_HORIZON_DAYS = 365;
 
@@ -233,7 +233,7 @@ function inferSpectatorNote(category: EventPoolCategory) {
   }
 
   if (category === "macro") {
-    return "Big external narrative gives the round obvious stakes.";
+    return "Big external narrative gives the market obvious stakes.";
   }
 
   if (category === "sports") {

@@ -38,9 +38,6 @@ next backend ledger slice is still in progress.
 | `/api/markets/[marketId]` | Market detail JSON |
 | `/api/leaderboard` | Leaderboard JSON, empty until durable ledger ships |
 
-Legacy Arena / Agent / Round / Battle routes were intentionally removed during
-the V1 cleanup and now return `404`.
-
 ## Tech Stack
 
 - Next.js App Router

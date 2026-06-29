@@ -37,8 +37,7 @@ surface.**
 
 ### Implementation Status
 
-- Legacy product routes and modules have been removed from the V1 application
-  surface.
+- The application surface is focused on Crowdline World Cup V1.
 - Prisma now keeps only the V1 market data models currently used by Crowdline:
   `EventPoolItem` and `MarketTick`.
 - The Polymarket indexer only writes `MarketTick` history for configured
@@ -76,8 +75,8 @@ server-side Crowdline tables and routes:
 
 ### Acceptance For V1-Only Cleanup
 
-- Old routes such as `/agents`, `/round`, `/battles`, and `/events` return 404.
+- Only the current Crowdline V1 routes are exposed.
 - The market feed, market detail, portfolio, and leaderboard pages open without
   a Next overlay.
-- No user-facing UI uses legacy product language.
+- No user-facing UI uses out-of-scope product language.
 - Market detail still shows real Polymarket outcomes and historical chart data.
