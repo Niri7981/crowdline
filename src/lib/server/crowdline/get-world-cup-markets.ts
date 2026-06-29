@@ -915,7 +915,7 @@ function buildFallbackSeries(
 }
 
 // 这里在干嘛：
-// 把 arena 时代的 EventPoolItem 读模型翻译成 Crowdline 首页和详情页真正需要的市场摘要。
+// 把 EventPoolItem 读模型翻译成 Crowdline 首页和详情页真正需要的市场摘要。
 // 为什么这么写：
 // 现有 repo 已经有 EventPoolItem 和 MarketTick；Day 1 不该先造新的 registry 表，
 // 先把已有数据解释成世界杯 meta-market 视角下的 read model，最快落地。

@@ -35,6 +35,9 @@ model EventPoolItem {
   stageLabel       String
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  orders           CrowdlineOrder[]
+  fills            CrowdlineFill[]
+  positions        CrowdlinePosition[]
 
   @@unique([sourceKey, externalEventId])
   @@index([status, playable])
@@ -58,4 +61,106 @@ model MarketTick {
   @@index([sourceKey, marketId, observedAt])
   @@index([tokenId, observedAt])
   @@index([conditionId])
+}
+
+model WalletAccount {
+  id                  String              @id @default(cuid())
+  walletKind          String
+  walletAddress       String
+  normalizedAddress   String
+  networkLabel        String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  deletedAt           DateTime?
+  creditLedgerEntries CreditLedgerEntry[]
+  orders              CrowdlineOrder[]
+  fills               CrowdlineFill[]
+  positions           CrowdlinePosition[]
+
+  @@unique([walletKind, normalizedAddress])
+  @@index([deletedAt])
+  @@index([normalizedAddress])
+}
+
+model CreditLedgerEntry {
+  id              String        @id @default(cuid())
+  walletAccountId String
+  entryType       String
+  amount          Float
+  balanceAfter    Float?
+  referenceType   String?
+  referenceId     String?
+  dedupeKey       String?       @unique
+  note            String?
+  createdAt       DateTime      @default(now())
+  deletedAt       DateTime?
+  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
+
+  @@index([deletedAt])
+  @@index([referenceType, referenceId])
+  @@index([walletAccountId, deletedAt, createdAt])
+}
+
+model CrowdlineOrder {
+  id              String          @id @default(cuid())
+  walletAccountId String
+  marketId        String
+  side            String
+  amount          Float
+  quotePrice      Float
+  shares          Float
+  status          String
+  marketTitle     String
+  createdAt       DateTime        @default(now())
+  filledAt        DateTime?
+  deletedAt       DateTime?
+  walletAccount   WalletAccount   @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
+  market          EventPoolItem    @relation(fields: [marketId], references: [id], onDelete: Restrict)
+  fill            CrowdlineFill?
+
+  @@index([deletedAt])
+  @@index([marketId, side])
+  @@index([status, createdAt])
+  @@index([walletAccountId, deletedAt, createdAt])
+}
+
+model CrowdlineFill {
+  id              String         @id @default(cuid())
+  orderId         String         @unique
+  walletAccountId String
+  marketId        String
+  side            String
+  amount          Float
+  price           Float
+  shares          Float
+  createdAt       DateTime       @default(now())
+  deletedAt       DateTime?
+  order           CrowdlineOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  walletAccount   WalletAccount  @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
+  market          EventPoolItem   @relation(fields: [marketId], references: [id], onDelete: Restrict)
+
+  @@index([deletedAt])
+  @@index([marketId, side])
+  @@index([walletAccountId, deletedAt, createdAt])
+}
+
+model CrowdlinePosition {
+  id              String        @id @default(cuid())
+  walletAccountId String
+  marketId        String
+  side            String
+  shares          Float
+  avgPrice        Float
+  spent           Float
+  realizedPnl     Float         @default(0)
+  openedAt        DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
+  market          EventPoolItem  @relation(fields: [marketId], references: [id], onDelete: Restrict)
+
+  @@unique([walletAccountId, marketId, side])
+  @@index([deletedAt])
+  @@index([marketId, side])
+  @@index([walletAccountId, deletedAt, updatedAt])
 }
